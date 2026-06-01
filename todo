@@ -1,0 +1,8 @@
+Wifi integrity layer sitting on top of ESP-now protocol.
+- Retries on no ACK received (exponential backoff?)
+- Syncronized frequency hopping on consistent performance degradation
+
+
+Extensions:
+- automatic mac discovery
+- task based / asyncronous
