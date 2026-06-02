@@ -4,7 +4,7 @@
 
 
 
-uint8_t receiverMAC[6] = {0xE0, 0x98, 0x06, 0x85, 0xAC, 0x69}; // TODO replace with actual peer MAC
+uint8_t receiverMAC[6] = {0xE0, 0x98, 0x06, 0x85, 0xAC, 0x69};
 
 
 // ============================================================
@@ -33,7 +33,6 @@ void setup() {
   Serial.println();
   Serial.println();
 
-
   Serial.println("ESP8266 ESP-NOW Example");
 
   Serial.println("ROLE: SENDER");
@@ -55,6 +54,7 @@ void setup() {
 
 
 void loop() {
+  RobustMsg::processPendingOperations();
 
   if (millis() - lastSend > 3000) {
     lastSend = millis();
@@ -73,9 +73,9 @@ void loop() {
     ErrorCode result = RobustMsg::send((uint8_t*) &outgoingMessage, sizeof(outgoingMessage), 5);
     
 
-    if (outgoingMessage.counter == 5) {
+    if (outgoingMessage.counter % 5 == 0) {
       Serial.println("Hopping channel...");
-      auto result = RobustMsg::hopChannel(6);
+      auto result = RobustMsg::hopChannel(random(1, 14));
       if (result == ErrorCode::OK) {
         Serial.println("Channel hop ok, waiting for 5 seconds before sending next message...");
         delay(5000);

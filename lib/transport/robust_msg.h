@@ -19,6 +19,7 @@ enum class ErrorCode : uint8 {
     CHANNEL_HOP_INVALID_ACK
 };
 
+// internal usage only
 struct SendResult {
     bool finished;
     uint8 macAddr[6];
@@ -31,17 +32,18 @@ struct __attribute__((packed)) Header {
     uint8 packetId;
 };
 
+// user recv callback type definition
 typedef void (*robust_msg_recv_callback)(u8 *mac_addr, u8 packet_id, u8 *data, u8 len);
 
 
 class RobustMsg {
 public:
-    // Inner struct definition for QoS settings for user usage
+    // Inner struct definition for ProtocolParams settings. Makes it accesible through RobustMsg namespace
 
-    struct QoS {
+    struct ProtocolParams {
         uint8 RETRY_MAX_AMOUNT;
         uint32 RETRY_BASE_DELAY_MS; // TODO make this full integer arithmetic
-        //float RETRY_GROWTH;
+        //float RETRY_GROWTH; exponential backoff?
         uint32 SEND_TIMEOUT_MS;
         uint32 CHANNEL_HOP_TIMEOUT_MS;
     };
@@ -57,7 +59,7 @@ private:
     inline static volatile bool pendingChannelChange = false;
     inline static volatile uint8 pendingChannel = 0;
     
-    inline static QoS qos = {
+    inline static ProtocolParams params = {
         .RETRY_MAX_AMOUNT = 10,
         .RETRY_BASE_DELAY_MS = 100,
         .SEND_TIMEOUT_MS = 1000,
@@ -95,17 +97,17 @@ public:
     static ErrorCode configurePeer(uint8* macAddr);
     /* Initialize wifi and espnow.*/
     static ErrorCode initialize(uint8 wifiChannel, uint8* peerMac);
-    static void setQoS(QoS qos);
+    static void setProtocolParams(ProtocolParams params);
 
     /* Sends data to the configured peer implementing ARQ according to 
-    the current QoS settings. */
+    the current ProtocolParams settings. */
     static ErrorCode send(u8* data, unsigned int len, u8 packId = 0);
     
     /* Processes pending operations queued by callbacks.
     Call this in your main loop to safely handle deferred operations. */
     static void processPendingOperations();
 
-    // wifi channel hopping
+    /* Attempts syncronized hopping to a new Wifi channel. */
     static ErrorCode hopChannel(uint8 newChannel);
 
 };

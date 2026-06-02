@@ -104,7 +104,7 @@ void RobustMsg::onDataReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) 
     }
     latestPacketNonce = hdr.nonce;
 
-    // if marked as consumed, user provided recv handler is not called
+    // if interanlly marked as consumed, user provided recv handler is not called
     bool consume = processInternalPackets(hdr, mac_addr, incomingData, len);
     if (consume) return;
 
@@ -121,7 +121,7 @@ bool RobustMsg::processInternalPackets(const Header& hdr, uint8 *mac_addr, uint8
     // reserved packetId 255 for internal channel hop commands
     if (hdr.packetId == 255 && len == sizeof(Header) + sizeof(uint8)) {
         uint8 newChannel = incomingData[sizeof(Header)];
-        Serial.print("Received channel hop command, new channel: ");
+        Serial.print("Hopping wifi to new channel: ");
         Serial.println(newChannel);
         chHopAck = newChannel; // set ack to be read by hopChannel method
 
@@ -152,6 +152,7 @@ auto RobustMsg::initESPnow() {
     }
 
     esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
+    bindCallbacks();
 
     Serial.println("ESP-NOW initialized");
     return 0; 
@@ -217,14 +218,13 @@ ErrorCode RobustMsg::configurePeer(uint8* macAddr) {
 
 /* Initialize wifi and espnow.*/
 ErrorCode RobustMsg::initialize(uint8 wifiChannel, uint8* peerMac) {
-    // if already initialized, return error code
+    // if already initialized, error
     if (isInit) return ErrorCode::NOT_INITIALIZED;
 
     // TODO add per call error handling and return appropriate error codes
     
     initWifi(wifiChannel);
     initESPnow();
-    bindCallbacks();
     
     isInit = true;
 
@@ -236,14 +236,14 @@ ErrorCode RobustMsg::initialize(uint8 wifiChannel, uint8* peerMac) {
     return ErrorCode::OK;
 }
 
-void RobustMsg::setQoS(RobustMsg::QoS qos) {
-    RobustMsg::qos = qos;
+void RobustMsg::setProtocolParams(RobustMsg::ProtocolParams params) {
+    RobustMsg::params = params;
 }
 
 // SEND ARQ
 
 /* Sends data to the configured peer implementing ARQ according to 
-the current QoS settings. */
+the current ProtocolParams settings. */
 ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
     if (!assertInitialized()) return ErrorCode::NOT_INITIALIZED;
     
@@ -256,7 +256,7 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
     // ARQ loop
     const auto startTime = millis();
     uint8 attempt = 0;
-    while (attempt < qos.RETRY_MAX_AMOUNT) {
+    while (attempt < params.RETRY_MAX_AMOUNT) {
 
         // if send callaback ran
         if (sendResult.finished) {
@@ -268,12 +268,12 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
             Serial.println(attempt + 1);
             
             attempt++;
-            delay(qos.RETRY_BASE_DELAY_MS);
+            delay(params.RETRY_BASE_DELAY_MS);
             sendMessage(peerMAC, data, len, nonce, packId);
         }
 
         uint32 elapsed = millis() - startTime; // assuming difference fits inside uint32
-        if (elapsed > qos.SEND_TIMEOUT_MS) {
+        if (elapsed > params.SEND_TIMEOUT_MS) {
             Serial.println("ARQ timeout reached, aborting send");
             return ErrorCode::TIMEOUT; // timed out
         }
@@ -298,14 +298,16 @@ ErrorCode RobustMsg::hopChannel(uint8 newChannel) {
     
     // in this loop we are expecting the peer to send back the desired new channel as an ack
     auto startTime = millis();
-    while (millis() - startTime < qos.CHANNEL_HOP_TIMEOUT_MS) {
+    while (millis() - startTime < params.CHANNEL_HOP_TIMEOUT_MS) {
         delay(10);
+        // chHopAck is set from the receive callback
         if (chHopAck == 0) continue;
 
         if (chHopAck != newChannel) return ErrorCode::CHANNEL_HOP_INVALID_ACK; // received ack but for wrong channel, possibly desynchronized state between peers
 
         Serial.println("Received channel hop ack from peer, switching channel");
         wifi_set_channel(newChannel);
+        delay(1000); // wait a bit for channel switch to stabilize
         return ErrorCode::OK;
     }
     return ErrorCode::TIMEOUT;
@@ -326,8 +328,9 @@ void RobustMsg::processPendingOperations() {
             Serial.println((uint8)result);
         } else {
             Serial.println("Channel hop ack sent successfully");
+            delay(500); 
             wifi_set_channel(pendingChannel);
-            delay(1000);
+            delay(500);
         }
 
         int ch = WiFi.channel();
