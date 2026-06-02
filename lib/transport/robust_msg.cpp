@@ -118,16 +118,26 @@ void RobustMsg::onDataReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) 
 /* All internal diagnostics / commands are processed here. They are not seen by user if function returns true (mark packet as consumed). 
 */
 bool RobustMsg::processInternalPackets(const Header& hdr, uint8 *mac_addr, uint8 *incomingData, uint8 len) {
-    // reserved packetId 255 for internal channel hop commands
-    if (hdr.packetId == 255 && len == sizeof(Header) + sizeof(uint8)) {
+    
+    #define EXPECTED_HOP_PACKET_LEN sizeof(Header) + sizeof(uint8)
+    
+    // reserved packetId 255 for hop RQST command
+    if (hdr.packetId == 255 && len == EXPECTED_HOP_PACKET_LEN) {
         uint8 newChannel = incomingData[sizeof(Header)];
         Serial.print("Hopping wifi to new channel: ");
         Serial.println(newChannel);
-        chHopAck = newChannel; // set ack to be read by hopChannel method
 
         // Queue the channel change to be executed in main loop (safer than doing it here)
         pendingChannel = newChannel;
         pendingChannelChange = true;
+        return true;
+    }
+    // reserved packetID 254 for hop ACK
+    if (hdr.packetId == 254 && len == EXPECTED_HOP_PACKET_LEN) {
+        uint8 newChannel = incomingData[sizeof(Header)];
+        Serial.print("Got hop ACK for channel: ");
+        Serial.println(newChannel);
+        chHopAck = newChannel; // set ack to be read by hopChannel method
         return true;
     }
 
@@ -230,6 +240,7 @@ ErrorCode RobustMsg::initialize(uint8 wifiChannel, uint8* peerMac) {
 
     ErrorCode result = configurePeer(peerMac);
     if (result != ErrorCode::OK) {
+        isInit = false;
         return result;
     }
     Serial.println("RobustMsg initialized successfully");
@@ -289,7 +300,7 @@ ErrorCode RobustMsg::hopChannel(uint8 newChannel) {
     chHopAck = 0; // reset ack before sending command
    
     // send channel change command to peer, reserved packetId 255 for channel change commands
-    ErrorCode result = send((u8*)&newChannel, sizeof(newChannel), 255); 
+    ErrorCode result = send((u8*)&newChannel, sizeof(newChannel), PACKID_HOP_RQST); 
     if (result != ErrorCode::OK) {
         Serial.print("Failed to send channel hop command, error code: ");
         Serial.println((uint8)result);
@@ -322,15 +333,15 @@ void RobustMsg::processPendingOperations() {
         Serial.println(pendingChannel);
 
         // send ack back to peer
-        ErrorCode result = send((u8*)&pendingChannel, sizeof(pendingChannel), 255);
+        ErrorCode result = send((u8*)&pendingChannel, sizeof(pendingChannel), PACKID_HOP_ACK);
         if (result != ErrorCode::OK) {
             Serial.print("Failed to send channel hop ack, error code: ");
             Serial.println((uint8)result);
         } else {
             Serial.println("Channel hop ack sent successfully");
-            delay(500); 
+            delay(100); 
             wifi_set_channel(pendingChannel);
-            delay(500);
+            delay(1000);
         }
 
         int ch = WiFi.channel();

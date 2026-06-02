@@ -32,7 +32,7 @@ Ogni pacchetto inviato con ESP-NOW prevede l'invio da parte del ricevente di un 
 
 Il meccanismo di ARQ implementato fa leva su questo sistema di ACK per verificare che il pacchetto sia stato effettivamente ricevuto. In caso di perdita del pacchetto, ACK non viene mai inviato e la trasmissione fallisce (ACK timeout interno, gestito da ESP-NOW). Dopo un fallimento, il pacchetto viene ritrasmesso dopo aver atteso un periodo di tempo fisso. In caso di perdita di ACK, il pacchetto viene ritrasmesso di nuovo, ma il ricevente si accorge che il pacchetto è duplicato (viene confrontato il nonce nell'header; se è lo stesso -> pacchetto duplicato).
 
-Il tempo di attesa fra ritrasmissioni, il tempo di attesa massimo per un intera trasmissione e il numero massimo di tentativi di ritrasmissione sono configurabili attraverso i parametri QoS (Quality of Service).
+Il tempo di attesa fra ritrasmissioni, il tempo di attesa massimo per un intera trasmissione e il numero massimo di tentativi di ritrasmissione sono configurabili attraverso i parametri protocollari (ProtocolParams).
 
 #### Diagramma temporale per funzionamento nominale:
 ```
@@ -80,7 +80,7 @@ Le schede ESP8266 dispongono di una sola radio WiFi in grado di sintonizzarsi su
 
 Il meccanismo di Channel Hop permette alle schede di cambiare dinamicamente e in modo sincronizzato canale WiFi. L'Hop può essere inziato da ciascuno dei due Peer; tuttavia, per ridurre a zero il rischio di conflitti, è bene decidere a priori chi dei due Peer ha l'arbitrio sulla scelta del canale di comunicazione (*soft* MASTER / SLAVE).
 
-I messaggi di `HOP RQST` e `HOP ACK` utilizzano un ID messaggio riservato (255), e sono inviati utilizzando ARQ.
+I messaggi di `HOP RQST` e `HOP ACK` utilizzano MessageID riservati (255-254), e sono inviati utilizzando ARQ.
 
 Diagramma temporale per un Channel Hop sul canale 6:
 ```
@@ -112,7 +112,7 @@ ErrorCode RobustMsg::initialize(uint8 wifiChannel, uint8* peerMac)
 ```
 
 ```cpp
-/* Invia data al peer configurato implementando ARQ in base ai parametri di QoS attuali. */
+/* Invia data al peer configurato implementando ARQ in base ai parametri di protocollo attuali. */
 ErrorCode RobustMsg::send(uint8* data, unsigned int len, uint8 packId)
 ```
 

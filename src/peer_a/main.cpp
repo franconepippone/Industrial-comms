@@ -40,7 +40,7 @@ void setup() {
 
   RobustMsg::printLocalMAC();
   RobustMsg::initialize(1, receiverMAC);
-  RobustMsg::setQoS({
+  RobustMsg::setProtocolParams({
     10, // retry max amount
     100, // retry base delay ms
     1000 // retry timeout ms

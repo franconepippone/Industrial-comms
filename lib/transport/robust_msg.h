@@ -10,6 +10,10 @@ extern "C" {
 
 #define SERIAL_DEBUG
 
+
+#define PACKID_HOP_RQST 255
+#define PACKID_HOP_ACK 254
+
 enum class ErrorCode : uint8 {
     OK = 0,
     TIMEOUT,
