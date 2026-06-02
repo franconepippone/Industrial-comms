@@ -1,7 +1,7 @@
 #include "robust_msg.h"
 
 
-void debugOnReceived(uint8_t *mac_addr, uint8_t *incomingData, uint8_t len) {
+void debugOnReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) {
     Serial.println();
     Serial.println("===== RECEIVE CALLBACK =====");
   
@@ -28,7 +28,7 @@ void debugOnReceived(uint8_t *mac_addr, uint8_t *incomingData, uint8_t len) {
     Serial.println("============================");
 }
   
-void debugOnSent(uint8_t *mac_addr, uint8_t sendStatus) {
+void debugOnSent(uint8 *mac_addr, uint8 sendStatus) {
     Serial.println();
     Serial.println("===== SEND CALLBACK =====");
     
@@ -54,7 +54,7 @@ void debugOnSent(uint8_t *mac_addr, uint8_t sendStatus) {
 
 
 
-#define SIMULATE_FAULT 
+//#define SIMULATE_FAULT 
 
 
 
@@ -64,7 +64,7 @@ void debugOnSent(uint8_t *mac_addr, uint8_t sendStatus) {
  
 // esp-now callbacks
 
-void RobustMsg::onDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
+void RobustMsg::onDataSent(uint8 *mac_addr, uint8 sendStatus) {
     #ifdef SERIAL_DEBUG
     debugOnSent(mac_addr, sendStatus); 
     #endif
@@ -84,7 +84,7 @@ void RobustMsg::onDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
     sendResult.finished = true;
 }
 
-void RobustMsg::onDataReceived(uint8_t *mac_addr, uint8_t *incomingData, uint8_t len) {
+void RobustMsg::onDataReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) {
     #ifdef SERIAL_DEBUG
     debugOnReceived(mac_addr, incomingData, len);
     #endif
@@ -104,12 +104,36 @@ void RobustMsg::onDataReceived(uint8_t *mac_addr, uint8_t *incomingData, uint8_t
     }
     latestPacketNonce = hdr.nonce;
 
+    // if marked as consumed, user provided recv handler is not called
+    bool consume = processInternalPackets(hdr, mac_addr, incomingData, len);
+    if (consume) return;
+
     // if user callback is set, call it with the payload (data after header)
     if (userRecvCallback != nullptr) {
         userRecvCallback(mac_addr, hdr.packetId, incomingData + sizeof(Header), len - sizeof(Header));
     }
 
 }
+
+/* All internal diagnostics / commands are processed here. They are not seen by user if function returns true (mark packet as consumed). 
+*/
+bool RobustMsg::processInternalPackets(const Header& hdr, uint8 *mac_addr, uint8 *incomingData, uint8 len) {
+    // reserved packetId 255 for internal channel hop commands
+    if (hdr.packetId == 255 && len == sizeof(Header) + sizeof(uint8)) {
+        uint8 newChannel = incomingData[sizeof(Header)];
+        Serial.print("Received channel hop command, new channel: ");
+        Serial.println(newChannel);
+        chHopAck = newChannel; // set ack to be read by hopChannel method
+
+        // Queue the channel change to be executed in main loop (safer than doing it here)
+        pendingChannel = newChannel;
+        pendingChannelChange = true;
+        return true;
+    }
+
+    return false; 
+}
+
 
 // UTILITY METHODS
 
@@ -249,7 +273,7 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
         }
 
         uint32 elapsed = millis() - startTime; // assuming difference fits inside uint32
-        if (elapsed > qos.SEND_TIMEOUT) {
+        if (elapsed > qos.SEND_TIMEOUT_MS) {
             Serial.println("ARQ timeout reached, aborting send");
             return ErrorCode::TIMEOUT; // timed out
         }
@@ -259,4 +283,55 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
     return ErrorCode::MAX_RETRIES_EXCEEDED; // max retry attempts reached
 }
 
-// RECV
+
+ErrorCode RobustMsg::hopChannel(uint8 newChannel) {
+        
+    chHopAck = 0; // reset ack before sending command
+   
+    // send channel change command to peer, reserved packetId 255 for channel change commands
+    ErrorCode result = send((u8*)&newChannel, sizeof(newChannel), 255); 
+    if (result != ErrorCode::OK) {
+        Serial.print("Failed to send channel hop command, error code: ");
+        Serial.println((uint8)result);
+        return result;
+    }
+    
+    // in this loop we are expecting the peer to send back the desired new channel as an ack
+    auto startTime = millis();
+    while (millis() - startTime < qos.CHANNEL_HOP_TIMEOUT_MS) {
+        delay(10);
+        if (chHopAck == 0) continue;
+
+        if (chHopAck != newChannel) return ErrorCode::CHANNEL_HOP_INVALID_ACK; // received ack but for wrong channel, possibly desynchronized state between peers
+
+        Serial.println("Received channel hop ack from peer, switching channel");
+        wifi_set_channel(newChannel);
+        return ErrorCode::OK;
+    }
+    return ErrorCode::TIMEOUT;
+}
+
+/* Processes pending operations that were queued by callbacks.
+Call this regularly in your main loop to safely execute deferred operations. */
+void RobustMsg::processPendingOperations() {
+    if (pendingChannelChange) {
+        pendingChannelChange = false; // clear flag first
+        Serial.print("Processing deferred channel change to: ");
+        Serial.println(pendingChannel);
+
+        // send ack back to peer
+        ErrorCode result = send((u8*)&pendingChannel, sizeof(pendingChannel), 255);
+        if (result != ErrorCode::OK) {
+            Serial.print("Failed to send channel hop ack, error code: ");
+            Serial.println((uint8)result);
+        } else {
+            Serial.println("Channel hop ack sent successfully");
+            wifi_set_channel(pendingChannel);
+            delay(1000);
+        }
+
+        int ch = WiFi.channel();
+        Serial.print("Current channel: ");
+        Serial.println(ch);
+    }
+}

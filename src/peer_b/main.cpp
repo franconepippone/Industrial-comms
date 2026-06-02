@@ -41,9 +41,10 @@ void setup() {
   RobustMsg::printLocalMAC();
   RobustMsg::initialize(1, receiverMAC);
   RobustMsg::setQoS({
-    10, // retry max amount
-    100, // retry base delay ms
-    1000 // send timeout ms
+    .RETRY_MAX_AMOUNT = 10,
+    .RETRY_BASE_DELAY_MS = 100, //ms
+    .SEND_TIMEOUT_MS = 1000, //ms
+    .CHANNEL_HOP_TIMEOUT_MS = 2000
   });
 
 }
@@ -69,15 +70,33 @@ void loop() {
     Serial.println();
     Serial.println("Sending packet...");
 
-    int result = RobustMsg::send((uint8_t*) &outgoingMessage, sizeof(outgoingMessage), 5);
+    ErrorCode result = RobustMsg::send((uint8_t*) &outgoingMessage, sizeof(outgoingMessage), 5);
+    
+
+    if (outgoingMessage.counter == 5) {
+      Serial.println("Hopping channel...");
+      auto result = RobustMsg::hopChannel(6);
+      if (result == ErrorCode::OK) {
+        Serial.println("Channel hop ok, waiting for 5 seconds before sending next message...");
+        delay(5000);
+        int ch = WiFi.channel();
+        Serial.print("Current channel: ");
+        Serial.println(ch);
+
+      } else {
+        Serial.print("Channel hop error: ");
+        Serial.println((uint8_t)result);
+      }
+      
+    }
 
     //int result = esp_now_send(receiverMAC, (uint8_t*) &outgoingMessage, sizeof(outgoingMessage));
 
-    if (result == 0) {
+    if (result == ErrorCode::OK) {
       Serial.println("Send ok");
     } else {
       Serial.print("Send error: ");
-      Serial.println(result);
+      Serial.println((uint8_t)result);
     }
   }
 

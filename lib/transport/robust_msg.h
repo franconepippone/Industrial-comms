@@ -10,24 +10,25 @@ extern "C" {
 
 #define SERIAL_DEBUG
 
-enum class ErrorCode : uint8_t {
+enum class ErrorCode : uint8 {
     OK = 0,
     TIMEOUT,
     NOT_INITIALIZED,
     MAX_RETRIES_EXCEEDED,
-    INTERNAL_ERROR
+    INTERNAL_ERROR,
+    CHANNEL_HOP_INVALID_ACK
 };
 
 struct SendResult {
     bool finished;
-    uint8_t macAddr[6];
-    uint8_t sendStatus;
+    uint8 macAddr[6];
+    uint8 sendStatus;
 };
 
 // prependend to each message, used for duplicate detection and possibly other features in the future
 struct __attribute__((packed)) Header {
-    uint32_t nonce;
-    uint8_t packetId;
+    uint32 nonce;
+    uint8 packetId;
 };
 
 typedef void (*robust_msg_recv_callback)(u8 *mac_addr, u8 packet_id, u8 *data, u8 len);
@@ -35,24 +36,32 @@ typedef void (*robust_msg_recv_callback)(u8 *mac_addr, u8 packet_id, u8 *data, u
 
 class RobustMsg {
 public:
-    // Inner struct definition for QoS settings for user
+    // Inner struct definition for QoS settings for user usage
 
     struct QoS {
         uint8 RETRY_MAX_AMOUNT;
         uint32 RETRY_BASE_DELAY_MS; // TODO make this full integer arithmetic
         //float RETRY_GROWTH;
-        uint32 SEND_TIMEOUT;
+        uint32 SEND_TIMEOUT_MS;
+        uint32 CHANNEL_HOP_TIMEOUT_MS;
     };
 
 private:
-    inline static uint8_t peerMAC[6] = {0};
+    inline static uint8 peerMAC[6] = {0};
     inline static bool isInit = false;
     inline static robust_msg_recv_callback userRecvCallback = nullptr;
-    inline static uint32_t latestPacketNonce = 0; // for duplicate detection
+    inline static uint32 latestPacketNonce = 0; // for duplicate detection
+    inline static uint8 chHopAck = 0;
+    
+    // Deferred operation flags (set by callbacks, executed in main loop)
+    inline static volatile bool pendingChannelChange = false;
+    inline static volatile uint8 pendingChannel = 0;
+    
     inline static QoS qos = {
         .RETRY_MAX_AMOUNT = 10,
         .RETRY_BASE_DELAY_MS = 100,
-        .SEND_TIMEOUT = 1000
+        .SEND_TIMEOUT_MS = 1000,
+        .CHANNEL_HOP_TIMEOUT_MS = 2000
     };
     inline static SendResult sendResult = {
         .finished = false,
@@ -61,9 +70,11 @@ private:
     };
 
     // espnow callbacks
-    
-    static void onDataSent(uint8_t *mac_addr, uint8_t sendStatus);
-    static void onDataReceived(uint8_t *mac_addr, uint8_t *incomingData, uint8_t len);
+    static void onDataSent(uint8 *mac_addr, uint8 sendStatus);
+    static void onDataReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len);
+
+    // handles packets for internal communication (e.g. channel hopping commands)
+    static bool processInternalPackets(const Header& hdr, uint8 *mac_addr, uint8 *incomingData, uint8 len);
     
     // utility
     static void initWifi(uint8 channel);
@@ -89,5 +100,12 @@ public:
     /* Sends data to the configured peer implementing ARQ according to 
     the current QoS settings. */
     static ErrorCode send(u8* data, unsigned int len, u8 packId = 0);
+    
+    /* Processes pending operations queued by callbacks.
+    Call this in your main loop to safely handle deferred operations. */
+    static void processPendingOperations();
+
+    // wifi channel hopping
+    static ErrorCode hopChannel(uint8 newChannel);
 
 };
