@@ -10,6 +10,13 @@ extern "C" {
 
 #define SERIAL_DEBUG
 
+enum class ErrorCode : uint8_t {
+    OK = 0,
+    TIMEOUT,
+    NOT_INITIALIZED,
+    MAX_RETRIES_EXCEEDED,
+    INTERNAL_ERROR
+};
 
 struct SendResult {
     bool finished;
@@ -34,7 +41,7 @@ public:
         uint8 RETRY_MAX_AMOUNT;
         uint32 RETRY_BASE_DELAY_MS; // TODO make this full integer arithmetic
         //float RETRY_GROWTH;
-        uint32 RETRY_TIMEOUT;
+        uint32 SEND_TIMEOUT;
     };
 
 private:
@@ -45,7 +52,7 @@ private:
     inline static QoS qos = {
         .RETRY_MAX_AMOUNT = 10,
         .RETRY_BASE_DELAY_MS = 100,
-        .RETRY_TIMEOUT = 1000
+        .SEND_TIMEOUT = 1000
     };
     inline static SendResult sendResult = {
         .finished = false,
@@ -65,7 +72,7 @@ private:
     inline static bool assertInitialized();
 
     // Wrapper around esp_now_send. Prepends header to message and resets ARQ internal state flags.
-    inline static auto sendMessage(u8* da, u8* data, unsigned int len);
+    inline static auto sendMessage(u8* da, u8* data, unsigned int len, uint32 nonce, u8 packId);
     
 public:
 
@@ -74,13 +81,13 @@ public:
     static inline void bindRecvCallback(robust_msg_recv_callback callback);
     static void printLocalMAC();
     /* Sets the given mac address as the current peer. */
-    static int configurePeer(uint8* macAddr);
+    static ErrorCode configurePeer(uint8* macAddr);
     /* Initialize wifi and espnow.*/
-    static int initialize(uint8 wifiChannel, uint8* peerMac);
+    static ErrorCode initialize(uint8 wifiChannel, uint8* peerMac);
     static void setQoS(QoS qos);
 
     /* Sends data to the configured peer implementing ARQ according to 
     the current QoS settings. */
-    static int send(u8* data, unsigned int len);
+    static ErrorCode send(u8* data, unsigned int len, u8 packId = 0);
 
 };

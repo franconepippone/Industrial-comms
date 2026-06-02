@@ -51,7 +51,10 @@ void debugOnSent(uint8_t *mac_addr, uint8_t sendStatus) {
     
     Serial.println("=========================");
 }
-  
+
+
+
+#define SIMULATE_FAULT 
 
 
 
@@ -69,6 +72,15 @@ void RobustMsg::onDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
     // store result so that it can be retrieved by the main loop
     memcpy(sendResult.macAddr, mac_addr, sizeof(sendResult.macAddr));
     sendResult.sendStatus = sendStatus;
+
+    #ifdef SIMULATE_FAULT
+    // simulate 20% send failure by randomly setting sendStatus to non-zero
+    if (os_random() % 5 == 0) {
+        Serial.println("Simulating send failure in callback...");
+        sendResult.sendStatus = 1; // non-zero indicates failure
+    }
+    #endif
+
     sendResult.finished = true;
 }
 
@@ -139,21 +151,26 @@ inline void RobustMsg::bindRecvCallback(robust_msg_recv_callback callback) {
 
 /* Wrapper around esp_now_send. Prepends header to message and resets ARQ internal state flags.
 */
-inline auto RobustMsg::sendMessage(u8* da, u8* data, unsigned int len) {
+inline auto RobustMsg::sendMessage(u8* da, u8* data, unsigned int len, uint32 nonce, u8 packId) {
     sendResult.finished = false; // always reset this for ARQ
     
     u8 outboundData[len + sizeof(Header)]; // TODO is this dynamic allocation?
 
     // prepend header to data
     Header& hdr = *reinterpret_cast<Header*>(outboundData);
-    hdr.nonce = os_random();
-    hdr.packetId = 0;
-
-    Serial.print("Generated nonce: ");
-    Serial.println(hdr.nonce);
+    hdr.nonce = nonce;
+    hdr.packetId = packId;
 
     // copy payload after header
     memcpy(outboundData + sizeof(Header), data, len);
+
+    #ifdef SIMULATE_FAULT
+    if (os_random() % 5 == 0) { // simulate 20% packet loss
+        Serial.println("Simulating send failure...");
+        return -1; // non-zero return value indicates failure in esp_now_send
+    }
+    #endif
+
     return esp_now_send(da, outboundData, sizeof(outboundData));
 }
 
@@ -165,19 +182,19 @@ void RobustMsg::printLocalMAC() {
 }
 
 /* Sets the given mac address as the current peer. */
-int RobustMsg::configurePeer(uint8* macAddr) {
-    if (!assertInitialized()) return -1;
+ErrorCode RobustMsg::configurePeer(uint8* macAddr) {
+    if (!assertInitialized()) return ErrorCode::NOT_INITIALIZED;
 
     // TODO possibly validate peerMac here
     memcpy(peerMAC, macAddr, sizeof(peerMAC));
     esp_now_del_peer(peerMAC); // in case peer was already added, remove it first to avoid duplicates
-    return esp_now_add_peer(peerMAC, ESP_NOW_ROLE_COMBO, 0, NULL, 0);
+    return esp_now_add_peer(peerMAC, ESP_NOW_ROLE_COMBO, 0, NULL, 0) ? ErrorCode::OK : ErrorCode::INTERNAL_ERROR; // TODO return more specific error code
 }
 
 /* Initialize wifi and espnow.*/
-int RobustMsg::initialize(uint8 wifiChannel, uint8* peerMac) {
+ErrorCode RobustMsg::initialize(uint8 wifiChannel, uint8* peerMac) {
     // if already initialized, return error code
-    if (isInit) return -1;
+    if (isInit) return ErrorCode::NOT_INITIALIZED;
 
     // TODO add per call error handling and return appropriate error codes
     
@@ -187,9 +204,12 @@ int RobustMsg::initialize(uint8 wifiChannel, uint8* peerMac) {
     
     isInit = true;
 
-    configurePeer(peerMac);
+    ErrorCode result = configurePeer(peerMac);
+    if (result != ErrorCode::OK) {
+        return result;
+    }
     Serial.println("RobustMsg initialized successfully");
-    return 0;
+    return ErrorCode::OK;
 }
 
 void RobustMsg::setQoS(RobustMsg::QoS qos) {
@@ -200,10 +220,14 @@ void RobustMsg::setQoS(RobustMsg::QoS qos) {
 
 /* Sends data to the configured peer implementing ARQ according to 
 the current QoS settings. */
- int RobustMsg::send(u8* data, unsigned int len) {
-    if (!assertInitialized()) return -1; // not initialized
+ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
+    if (!assertInitialized()) return ErrorCode::NOT_INITIALIZED;
     
-    sendMessage(peerMAC, data, len);
+    uint32 nonce = os_random(); // generate random nonce for this message
+    Serial.print("Generated nonce: ");
+    Serial.println(nonce);
+
+    sendMessage(peerMAC, data, len, nonce, packId);
     
     // ARQ loop
     const auto startTime = millis();
@@ -212,7 +236,7 @@ the current QoS settings. */
 
         // if send callaback ran
         if (sendResult.finished) {
-            if (sendResult.sendStatus == 0) return 0; // on success
+            if (sendResult.sendStatus == 0) return ErrorCode::OK; // on success
             
             // on failure, wait and retry
             Serial.println("Send failed, retrying...");
@@ -221,18 +245,18 @@ the current QoS settings. */
             
             attempt++;
             delay(qos.RETRY_BASE_DELAY_MS);
-            sendMessage(peerMAC, data, len);
+            sendMessage(peerMAC, data, len, nonce, packId);
         }
 
         uint32 elapsed = millis() - startTime; // assuming difference fits inside uint32
-        if (elapsed > qos.RETRY_TIMEOUT) {
+        if (elapsed > qos.SEND_TIMEOUT) {
             Serial.println("ARQ timeout reached, aborting send");
-            return -2; // timed out
+            return ErrorCode::TIMEOUT; // timed out
         }
         // this delay is absolutely necessary to let the backround esp-now callback run. Removing it cause callback to fail
         delay(5); // TODO adjust this (can probably be lower)
     }
-    return -3; // max retry attempts reached
+    return ErrorCode::MAX_RETRIES_EXCEEDED; // max retry attempts reached
 }
 
 // RECV
