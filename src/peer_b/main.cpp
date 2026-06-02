@@ -41,8 +41,8 @@ void setup() {
   RobustMsg::initialize(1, receiverMAC);
   RobustMsg::setProtocolParams({
     .RETRY_MAX_AMOUNT = 10,
-    .RETRY_BASE_DELAY_MS = 100, //ms
-    .SEND_TIMEOUT_MS = 1000, //ms
+    .RETRY_BASE_DELAY_MS = 100,
+    .SEND_TIMEOUT_MS = 1000,
     .CHANNEL_HOP_TIMEOUT_MS = 2000
   });
 
@@ -71,7 +71,6 @@ void loop() {
     Serial.println("Sending packet...");
 
     ErrorCode result = RobustMsg::send((uint8_t*) &outgoingMessage, sizeof(outgoingMessage), 5);
-    
 
     if (outgoingMessage.counter % 5 == 0) {
       Serial.println("Hopping channel...");

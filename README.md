@@ -1,9 +1,7 @@
 
-# Implementazione software di un layer di robustezza sopra ESP-NOW (per ESP8266) per messaggistica Peer2Peer
+# Implementazione software di un layer di robustezza sopra ESP-NOW (per ESP8266) per comunicazione Peer2Peer
 > Progetto di **Industrial Communications**.  
 —  Americo Cherubini, mat. 309445. 
-
-<br>
 
 ## Overview
 ESP‑NOW è un protocollo proprietario di Espressif che permette a più dispositivi ESP8266/ESP32 di comunicare direttamente tra loro tramite pacchetti a bassa latenza, senza richiedere un access point Wi‑Fi o una connessione IP. Utilizza frame Wi‑Fi di tipo action, garantendo consumi ridotti e tempi di trasmissione molto rapidi, ideali per reti di sensori, attuatori e sistemi real‑time. L’utente può definire un proprio formato di pacchetto, gestire peer multipli e implementare logiche personalizzate di affidabilità, rendendo ESP‑NOW una base flessibile per protocolli applicativi leggeri e ad alte prestazioni.
@@ -50,7 +48,7 @@ Il tempo di attesa fra ritrasmissioni, il tempo di attesa massimo per un intera 
     |               |
     | -- Msg1 --> X |
     |               |
-TIMEOUT!            |
+ACK TIMEOUT         |
 WAIT                |
     | --- Msg1 ---> |
     |               | OK
@@ -66,7 +64,7 @@ WAIT                |
     |               | OK
     |  X<-- ACK --- |
     |               |
-TIMEOUT!            |
+ACK TIMEOUT         |
 WAIT                |
     | --- Msg1 ---> |
     |               | OK (DUPLICATE, *don't invoke callbacks*)
@@ -78,11 +76,11 @@ WAIT                |
 ### Channel Hop
 Le schede ESP8266 dispongono di una sola radio WiFi in grado di sintonizzarsi su un canale nell'intervallo 1-14 in banda 2.4 GHz. Entrambe le schede devo essere avviate sullo stesso canale per poter instaurare una connessione iniziale.   
 
-Il meccanismo di Channel Hop permette alle schede di cambiare dinamicamente e in modo sincronizzato canale WiFi. L'Hop può essere inziato da ciascuno dei due Peer; tuttavia, per ridurre a zero il rischio di conflitti, è bene decidere a priori chi dei due Peer ha l'arbitrio sulla scelta del canale di comunicazione (*soft* MASTER / SLAVE).
+Il meccanismo di Channel Hop permette alle schede di cambiare dinamicamente e in modo sincronizzato canale WiFi. L'Hop può essere inziato da ciascuno dei due Peer; tuttavia, per ridurre a zero il rischio di conflitti, è bene decidere a priori chi dei due Peer ha l'arbitrio sulla scelta del canale di comunicazione.
 
 I messaggi di `HOP RQST` e `HOP ACK` utilizzano MessageID riservati (255-254), e sono inviati utilizzando ARQ.
 
-Diagramma temporale per un Channel Hop sul canale 6:
+#### Diagramma temporale per un Channel Hop sul canale 6:
 ```
     Peer A               Peer B
     |                       |
@@ -117,7 +115,7 @@ ErrorCode RobustMsg::send(uint8* data, unsigned int len, uint8 packId)
 ```
 
 ```cpp
-/* Inizia un tentativo di hop sincronizzato al nuovo canale WiFi */
+/* Tenta un hop sincronizzato al nuovo canale WiFi */
 ErrorCode RobustMsg::hopChannel(uint8 newChannel)
 ```
 

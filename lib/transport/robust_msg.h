@@ -93,8 +93,6 @@ private:
     
 public:
 
-    // UTILITY
-
     static inline void bindRecvCallback(robust_msg_recv_callback callback);
     static void printLocalMAC();
     /* Sets the given mac address as the current peer. */
@@ -113,5 +111,7 @@ public:
 
     /* Attempts syncronized hopping to a new Wifi channel. */
     static ErrorCode hopChannel(uint8 newChannel);
+
+    static inline bool setWifiChannel(uint8 newChannel);
 
 };

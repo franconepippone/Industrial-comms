@@ -349,3 +349,8 @@ void RobustMsg::processPendingOperations() {
         Serial.println(ch);
     }
 }
+
+/* Sets this board's wifi radio to new channel. Unlike 'hopChannel', this does not perform a syncronized Hop. */
+inline bool RobustMsg::setWifiChannel(uint8 newChannel) {
+    return wifi_set_channel(newChannel);
+}

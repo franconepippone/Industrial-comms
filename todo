@@ -3,7 +3,7 @@ Wifi integrity layer sitting on top of ESP-now protocol.
 - Syncronized frequency hopping on consistent performance degradation
 - Message id confrontation on receiver side, to account for lost ACKs (duplicate messages)
 
-Extensions:
+Future extensions:
 - automatic mac discovery
 - task based / asyncronous
 - auto fragmentation
