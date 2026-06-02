@@ -42,7 +42,7 @@ void setup() {
   RobustMsg::initialize(1, receiverMAC);
   RobustMsg::setQoS({
     10, // retry max amount
-    10, // retry base delay ms
+    100, // retry base delay ms
     1000 // retry timeout ms
   });
 
@@ -71,8 +71,10 @@ void loop() {
 
     int result = RobustMsg::send((uint8_t*) &outgoingMessage, sizeof(outgoingMessage));
 
+    //int result = esp_now_send(receiverMAC, (uint8_t*) &outgoingMessage, sizeof(outgoingMessage));
+
     if (result == 0) {
-      Serial.println("Send request queued");
+      Serial.println("Send ok");
     } else {
       Serial.print("Send error: ");
       Serial.println(result);

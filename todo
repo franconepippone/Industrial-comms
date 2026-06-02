@@ -1,7 +1,7 @@
 Wifi integrity layer sitting on top of ESP-now protocol.
 - Retries on no ACK received (exponential backoff?)
 - Syncronized frequency hopping on consistent performance degradation
-
+- Message id confrontation on receiver side, to account for lost ACKs (duplicate messages)
 
 Extensions:
 - automatic mac discovery
