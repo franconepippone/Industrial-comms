@@ -26,11 +26,14 @@ A ogni pacchetto inviato viene anteposto un header che contiene:
 
 ### ARQ
 
-Ogni pacchetto inviato con ESP-NOW prevede l'invio da parte del ricevente di un ACK, che il mittente utilizza per asserire la buona riuscita della trasmissione. 
+Il protocollo ESP-NOW prevede l'invio da parte del ricevente di un ACK per ogni pacchetto, che il mittente utilizza per asserire la buona riuscita della trasmissione. 
 
-Il meccanismo di ARQ implementato fa leva su questo sistema di ACK per verificare che il pacchetto sia stato effettivamente ricevuto. In caso di perdita del pacchetto, ACK non viene mai inviato e la trasmissione fallisce (ACK timeout interno, gestito da ESP-NOW). Dopo un fallimento, il pacchetto viene ritrasmesso dopo aver atteso un periodo di tempo fisso. In caso di perdita di ACK, il pacchetto viene ritrasmesso di nuovo, ma il ricevente si accorge che il pacchetto è duplicato (viene confrontato il nonce nell'header; se è lo stesso -> pacchetto duplicato).
+Il meccanismo di ARQ implementato fa leva su questo sistema di ACK per verificare che il pacchetto sia stato effettivamente ricevuto. In caso di perdita del pacchetto, ACK non viene mai inviato e la trasmissione fallisce†. In caso di fallimento, il pacchetto viene ritrasmesso dopo aver atteso un periodo di tempo fisso. In caso di perdita di ACK, la trasmissione fallisce e il pacchetto viene ritrasmesso, ma il ricevente si accorge che il pacchetto è duplicato (viene confrontato il nonce nell'header; se è lo stesso -> pacchetto duplicato).  
+Il loop di ritrasmissione avviene fino a quando non si verifica un successo, un timeout globale dell'operazione, o si raggiunge il numero massimo di ritrasmissioni.
 
-Il tempo di attesa fra ritrasmissioni, il tempo di attesa massimo per un intera trasmissione e il numero massimo di tentativi di ritrasmissione sono configurabili attraverso i parametri protocollari (ProtocolParams).
+> *†  ESP‑NOW gestisce autonomamente il timeout dell’ACK: se l’ACK non arriva entro la finestra prevista, la trasmissione viene segnalata al mittente con un codice di errore diverso da zero.*
+
+Il tempo di attesa fra ritrasmissioni, il tempo di attesa massimo per l'intera operazione e il numero massimo di tentativi di ritrasmissione sono configurabili attraverso i parametri protocollari (ProtocolParams).
 
 #### Diagramma temporale per funzionamento nominale:
 ```

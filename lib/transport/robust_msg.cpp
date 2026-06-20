@@ -1,6 +1,8 @@
 #include "robust_msg.h"
 
 
+
+
 void debugOnReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) {
     Serial.println();
     Serial.println("===== RECEIVE CALLBACK =====");
@@ -53,7 +55,7 @@ void debugOnSent(uint8 *mac_addr, uint8 sendStatus) {
 }
 
 
-
+#define SERIAL_DEBUG
 //#define SIMULATE_FAULT 
 
 
@@ -104,13 +106,16 @@ void RobustMsg::onDataReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) 
     }
     latestPacketNonce = hdr.nonce;
 
+    uint8* payloadData = incomingData + sizeof(Header);
+    const uint8 payloadLen = len - sizeof(Header);
+
     // if interanlly marked as consumed, user provided recv handler is not called
-    bool consume = processInternalPackets(hdr, mac_addr, incomingData, len);
+    bool consume = processInternalPackets(hdr, mac_addr, payloadData, payloadLen);
     if (consume) return;
 
     // if user callback is set, call it with the payload (data after header)
     if (userRecvCallback != nullptr) {
-        userRecvCallback(mac_addr, hdr.packetId, incomingData + sizeof(Header), len - sizeof(Header));
+        userRecvCallback(mac_addr, hdr.packetId, payloadData, payloadLen);
     }
 
 }
@@ -123,7 +128,7 @@ bool RobustMsg::processInternalPackets(const Header& hdr, uint8 *mac_addr, uint8
     
     // reserved packetId 255 for hop RQST command
     if (hdr.packetId == 255 && len == EXPECTED_HOP_PACKET_LEN) {
-        uint8 newChannel = incomingData[sizeof(Header)];
+        uint8 newChannel = incomingData[0];
         Serial.print("Hopping wifi to new channel: ");
         Serial.println(newChannel);
 
@@ -134,7 +139,7 @@ bool RobustMsg::processInternalPackets(const Header& hdr, uint8 *mac_addr, uint8
     }
     // reserved packetID 254 for hop ACK
     if (hdr.packetId == 254 && len == EXPECTED_HOP_PACKET_LEN) {
-        uint8 newChannel = incomingData[sizeof(Header)];
+        uint8 newChannel = incomingData[0];
         Serial.print("Got hop ACK for channel: ");
         Serial.println(newChannel);
         chHopAck = newChannel; // set ack to be read by hopChannel method
@@ -350,7 +355,7 @@ void RobustMsg::processPendingOperations() {
     }
 }
 
-/* Sets this board's wifi radio to new channel. Unlike 'hopChannel', this does not perform a syncronized Hop. */
+/* Tunes this board's wifi radio to new channel. Unlike 'hopChannel', this does not perform a syncronized Hop. */
 inline bool RobustMsg::setWifiChannel(uint8 newChannel) {
     return wifi_set_channel(newChannel);
 }

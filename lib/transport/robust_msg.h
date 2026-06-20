@@ -8,7 +8,7 @@ extern "C" {
     #include "osapi.h"
 }
 
-#define SERIAL_DEBUG
+
 
 
 #define PACKID_HOP_RQST 255
