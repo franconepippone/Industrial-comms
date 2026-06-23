@@ -46,45 +46,45 @@ sequenceDiagram
     B-->>A: ACK
     Note left of A: OK
 ```
-#### In caso di perdita del pacchetto:
-```mermaid
-sequenceDiagram
-    participant A as Peer A
-    participant B as Peer B
-
-    A-xB: Msg1
-    note right of B: ❌ Packet lost
-
-    note over A: ACK TIMEOUT
-    note over A: WAIT
-    A->>B: Msg1 (Retransmit)
-    note right of B: OK
-
-    B-->>A: ACK
-    note left of A: OK
 
 ```
+    Peer A        Peer B
+    |               |
+    | --- Msg1 ---> |
+    |               | OK
+    | <--- ACK ---- |
+ OK |               |
+    |               |
+```
+#### In caso di perdita del pacchetto:
+```
+    Peer A        Peer B
+    |               |
+    | -- Msg1 --> X |
+    |               |
+ACK TIMEOUT         |
+WAIT                |
+    | --- Msg1 ---> |
+    |               | OK
+    | <--- ACK ---- |
+ OK |               |
+    |               |
+```
 #### In caso di perdita di ACK:
-```mermaid
-
-sequenceDiagram
-    participant A as Peer A
-    participant B as Peer B
-
-    A->>B: Msg1
-    note right of B: OK
-    B--xA: ACK
-    note left of A: ❌ ACK lost
-
-    note over A: ACK TIMEOUT
-    note over A: WAIT
-    A->>B: Msg1 (Retransmit)
-
-    note right of B: OK (DUPLICATE)<br>No callbacks invoked
-    B-->>A: ACK
-    note left of A: OK
-
-
+```
+    Peer A        Peer B
+    |               |
+    | --- Msg1 ---> |
+    |               | OK
+    |  X<-- ACK --- |
+    |               |
+ACK TIMEOUT         |
+WAIT                |
+    | --- Msg1 ---> |
+    |               | OK (DUPLICATE, *don't invoke callbacks*)
+    | <--- ACK ---- |
+ OK |               |
+    |               |
 ```
 
 ### Channel Hop
@@ -95,19 +95,21 @@ Il meccanismo di Channel Hop permette alle schede di cambiare dinamicamente e in
 I messaggi di `HOP RQST` e `HOP ACK` utilizzano MessageID riservati (255-254), e sono inviati utilizzando ARQ.
 
 #### Diagramma temporale per un Channel Hop sul canale 6:
-```mermaid
-sequenceDiagram
-    participant A as Peer A
-    participant B as Peer B
-    activate A
-    A->>B: HOP RQST 6
-    Note right of B: OK
-    B-->>A: HOP ACK 6
-    Note left of A: OK
-    note over A, B: SWITCH TO CHANNEL 6
-    
 ```
+    Peer A               Peer B
+    |                       |
+    | ---- HOP RQST 6 ----> |
+    |                       | OK 
+    | <---- HOP ACK 6 ----  |
+ OK |                       |
+    |                       |
+SWITCH CH 6             SWITCH CH 6
+    |                       |
+    :                       :
+
 communication resumes on new channel...
+```
+
 <br>
 
 ## Arduino API
