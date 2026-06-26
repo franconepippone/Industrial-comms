@@ -52,10 +52,74 @@ void setup() {
 // LOOP
 // ============================================================
 
+enum UserCommand {
+  SEND,
+  HOP,
+  NO_OP
+};
+
+UserCommand processSerialInput() {
+  if (Serial.available()) {
+    uint8 c = Serial.read();
+    switch (c) {
+      case 's':
+        return SEND;
+
+      case 'h':
+        return HOP;
+
+    }
+  }
+  return NO_OP;
+}
 
 void loop() {
   RobustMsg::processPendingOperations();
+  UserCommand cm = processSerialInput();
 
+  if (cm == SEND) {
+    outgoingMessage.counter = sendCounter++;
+    outgoingMessage.temperature = random(200, 350) / 10.0;
+
+    snprintf(outgoingMessage.text,
+      sizeof(outgoingMessage.text),
+      "Hello #%u",
+      outgoingMessage.counter);
+
+    Serial.println();
+    Serial.println("Sending packet...");
+
+    ErrorCode result = RobustMsg::send((uint8_t*) &outgoingMessage, sizeof(outgoingMessage), 5);
+
+
+    if (result == ErrorCode::OK) {
+      Serial.println("Send ok");
+    } else {
+      Serial.print("Send error: ");
+      Serial.println((uint8_t)result);
+    }
+
+  }
+
+  if (cm == HOP) {
+    Serial.println("Hopping channel...");
+    auto result = RobustMsg::hopChannel(random(1, 14));
+    if (result == ErrorCode::OK) {
+      Serial.println("Channel hop ok, waiting for 5 seconds before sending next message...");
+      delay(5000);
+      int ch = WiFi.channel();
+      Serial.print("Current channel: ");
+      Serial.println(ch);
+
+    } else {
+      Serial.print("Channel hop error: ");
+      Serial.println((uint8_t)result);
+    }
+  }
+}
+
+
+/*
   if (millis() - lastSend > 3000) {
     lastSend = millis();
 
@@ -100,3 +164,6 @@ void loop() {
   }
 
 }
+
+
+*/

@@ -228,7 +228,7 @@ ErrorCode RobustMsg::configurePeer(uint8* macAddr) {
     // TODO possibly validate peerMac here
     esp_now_del_peer(peerMAC); // remove current peer, if valid
     memcpy(peerMAC, macAddr, sizeof(peerMAC));
-    return esp_now_add_peer(peerMAC, ESP_NOW_ROLE_COMBO, 0, NULL, 0) ? ErrorCode::OK : ErrorCode::INTERNAL_ERROR; // TODO return more specific error code
+    return (esp_now_add_peer(peerMAC, ESP_NOW_ROLE_COMBO, 0, NULL, 0) == 0) ? ErrorCode::OK : ErrorCode::INTERNAL_ERROR; // TODO return more specific error code
 }
 
 /* Initialize wifi and espnow.*/

@@ -1,0 +1,46 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Terminal A",
+        "type": "shell",
+        "command": "C:/Users/ameri/.platformio/penv/Scripts/platformio.exe device monitor --environment peer_a",
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "presentation": {
+            "group": "mySplitGroup",
+          "reveal": "always",
+          "panel": "dedicated"
+        }
+      },
+      {
+        "label": "Terminal B",
+        "type": "shell",
+        "command": "C:/Users/ameri/.platformio/penv/Scripts/platformio.exe device monitor --environment peer_b",
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "presentation": {
+            "group": "mySplitGroup",
+          "reveal": "always",
+          "panel": "dedicated"
+        }
+      },
+      {
+        "label": "Serial monitor boards",
+        "dependsOn": ["Terminal A", "Terminal B"],
+        "runOptions": {
+          "runOn": "default"
+        }
+      },
+      {
+        "label": "Build both boards",
+        "dependsOn": ["Terminal A", "Terminal B"],
+        "runOptions": {
+          "runOn": "default"
+        }
+      }
+    ]
+  }
+  
