@@ -124,9 +124,10 @@ void RobustMsg::onDataReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) 
 */
 bool RobustMsg::processInternalPackets(const Header& hdr, uint8 *mac_addr, uint8 *incomingData, uint8 len) {
     
-    #define EXPECTED_HOP_PACKET_LEN sizeof(Header) + sizeof(uint8)
+    #define EXPECTED_HOP_PACKET_LEN sizeof(uint8)
     
     // reserved packetId 255 for hop RQST command
+    Serial.println(len);
     if (hdr.packetId == 255 && len == EXPECTED_HOP_PACKET_LEN) {
         uint8 newChannel = incomingData[0];
         Serial.print("Hopping wifi to new channel: ");
