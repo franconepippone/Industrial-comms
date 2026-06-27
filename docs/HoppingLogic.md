@@ -31,7 +31,7 @@ L'idea alla base dell'innesco di un hop è monitorare in tempo reale lo stato di
 
 $$
 \begin{aligned}
-d_i = \frac{TXF}{(TXF + TXS)} \\
+d_i = \frac{TXF}{(TXF + TXS)} \\\\
 D_{i+1} = D_{i} + k(d_i - D_i)
 \end{aligned}
 $$
@@ -62,7 +62,7 @@ Poichè in una singola iterazione si possono avere sia trasmissioni riuscite che
 
 $$
 \begin{aligned}
-R_{i+1, succ} = 1 - (1 - R_i)(1-k_r)^{TXS} \\
+R_{i+1, succ} = 1 - (1 - R_i)(1-k_r)^{TXS} \\\\
 R_{i+1, fail} = R_i * (1-k_p)^{TXF}
 \end{aligned}
 $$
