@@ -1,8 +1,6 @@
 #include "robust_msg.h"
 
 
-
-
 void debugOnReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) {
     Serial.println();
     Serial.println("===== RECEIVE CALLBACK =====");

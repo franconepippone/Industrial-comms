@@ -9,10 +9,10 @@ fig, (ax, ax_loss) = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios
 
 # --- top subplot: score + memory ---
 x, y = [], []
-line,  = ax.plot(x, y, label='score')
+line,  = ax.plot(x, y, label='Degratation Estimate')
 
 x2, y2 = [], []
-line2, = ax.plot(x2, y2, label='memory', )
+line2, = ax.plot(x2, y2, label='Reputation', )
 
 ax.legend()
 
@@ -26,6 +26,8 @@ ax_loss.margins(y=0)
 
 
 ax_loss.set_xlabel('iterations')
+ax_loss.set_ylabel('ARQ attempts')
+ax_loss.set_yticks([0,1,2,3,4,5])
 
 loss_line, = ax_loss.plot(x3, y3, linestyle='--')
 
@@ -44,15 +46,15 @@ def on_move(event):
 cid = fig.canvas.mpl_connect("motion_notify_event", on_move)
 
 
-memory = .5
-score = .5
+memory = .8
+score = 0
 
 
 k_r = 0*0.05 # pull score -> memory
 k_m = 0.01 # pull memory -> score
 
 k_s = .01 # tx success reward
-k_f = .01 # tx fail penalty
+k_f = .005 # tx fail penalty
 
 m_f = 100 # how much memory remembers
 _m_f_inv = 1 / m_f
@@ -87,7 +89,7 @@ def update(succ: int, fail: int):
 #Rn​=R0​(1−k)**n
 
 k_r = .2 # score decay constant
-k_p = .1
+k_p = .2
 
 def update_2(TXS, TXF):
     global memory, score
@@ -162,11 +164,13 @@ try:
         ax.relim()
         ax.autoscale_view(True)
 
-        plt.pause(0.01)             # refresh plot
+        plt.pause(0.1)             # refresh plot
 except KeyboardInterrupt:
-    ax.set_xlim(x[0], x[-1])
-    ax.legend()
     pass
+
+
+ax.set_xlim(x[0], x[-1])
+ax.legend()
 
 while True:
     plt.pause(.01)

@@ -30,8 +30,10 @@ flowchart LR
 L'idea alla base dell'innesco di un hop è monitorare in tempo reale lo stato di degrado del canale. Questo può essere fatto guardando direttamente al rapporto fra TXF/TX_TOT, ovvero alla percentuale % di trasmissioni fallite sulle trasmissioni totali durante quell'iterazione. Invece di usare il valore direttamente, costruiamo una stima di degradazione ($D \in [0,1]$) utilizzato la seguente legge di aggiornamento (Exponential Moving Average):
 
 $$
+\begin{aligned}
 d_i = \frac{TXF}{(TXF + TXS)} \\
 D_{i+1} = D_{i} + k(d_i - D_i)
+\end{aligned}
 $$
 
 Dove $d_i \in [0,1]$ è il valore di degradazione percentuale instantaneo, e $D_i$ è il valore filtrato. Iterando la legge, si ha che $D$ tende esponenzialmente verso $d_i$, per un $d$ costante; nel caso di un $d$ rumoroso, $D$ si comporta come un filtro passa basso, smussando le variazioni rapide di $d_i$.
@@ -59,8 +61,10 @@ Allo stesso modo, più $k_p$ è grande rispetto a $k_r$, maggiore è l'impatto d
 Poichè in una singola iterazione si possono avere sia trasmissioni riuscite che trasmissioni fallite, la legge di aggiornamento complessiva prende la seguente forma chiusa (per il calcolo, consulta --):
 
 $$
+\begin{aligned}
 R_{i+1, succ} = 1 - (1 - R_i)(1-k_r)^{TXS} \\
 R_{i+1, fail} = R_i * (1-k_p)^{TXF}
+\end{aligned}
 $$
 
 $$
@@ -82,11 +86,13 @@ In contesti reali, può capitare che un canale di comuncazione normalmente affid
 
 Una volta effettuato un hop, il canale di origine viene messo in timeout per un certo tempo: ciò previene che il controllore salti immediatamente indietro su di esso. In background, il controllore tenta periodicamente di saltare a canali con reputazione migliore. Se la reputazione del canale di origine continua ad essere migliore del canale corrente, una volta superato il timeout, il controllore salterà nuovamente su di esso. Se il disturbo era *effettivamente* transitorio, il sistema si trova di nuovo nello stato iniziale; altrimenti, se il disturbo ancora persiste, si ripete esattamente quanto spiegato nel paragrafo precedente.
 
+![Andamento di D e R con un burst di perdite usando ARQ](/docs/burst.png)
+
 #### Degradazione persistente del canale
 
 Nel caso in cui il disturbo su un canale non è transitorio ma persiste e peggiora gradualmente nel tempo, oltre all'innalzamento graduale della stima di degrado $D$, le perdite sono spalmante su una finestra temporale abbastanza grande da influenzare la reputazione $R$ del canale; in altre parole, se un canale ha un peggioramento persistente e non transitorio, la sua reputazione peggiora di conseguenza. 
 
-
+![Andamento di D e R con perdite usando ARQ](/docs/persistent_degradation2.png)
 
 ## Scelta dei parametri
 
