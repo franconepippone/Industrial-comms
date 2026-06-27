@@ -18,10 +18,10 @@ ax.legend()
 
 # --- bottom subplot: loss ---
 x3, y3 = [], []
-ax_loss.axhspan(-1.5, -0.5, color='red',   alpha=0.2, label='TX success')
-ax_loss.axhspan(-0.5,  0.5, color='yellow',alpha=0.2, label='no TX')
-ax_loss.axhspan( 0.5,  1.5, color='green', alpha=0.2, label='TX fail')
-ax_loss.set_ylim(-1.5, 1.5)
+ax_loss.axhspan(4.5, 5.5, color='red',   alpha=0.2, label='Delivery fail')
+ax_loss.axhspan( 0.5,  4.5, color='green', alpha=0.2, label='Delivery success')
+ax_loss.axhspan(-0.5,  0.5, color='yellow',alpha=0.2, label='no requests')
+ax_loss.set_ylim(-0.5, 5.5)
 ax_loss.margins(y=0)
 
 
@@ -48,29 +48,62 @@ memory = .5
 score = .5
 
 
-k_r = 0.05 # how much score tends towards memory
-k_m = 0.01 # how much memory tends towards score
+k_r = 0*0.05 # pull score -> memory
+k_m = 0.01 # pull memory -> score
 
-k_s = .05 # how much packet success affects scores
-k_f = .1 # how much packet failure affects score
+k_s = .01 # tx success reward
+k_f = .01 # tx fail penalty
 
-f = 0.01 # how less memory reacts compared to score
+m_f = 100 # how much memory remembers
+_m_f_inv = 1 / m_f
 
-def update(q: float):
+def update(succ: int, fail: int):
     # q = -1 : loss
     # q = 0 : no packet sent
     # q = 1 : success
     global memory, score
-    if q == 1.0:
-        memory += f * k_s * (1-memory) # long term memory
-        score += k_s * (1 - score)
-    elif q == -1.0:
-        memory += - f * k_f * memory
+    
+    # fail
+    for _ in range(fail):
+        memory += - _m_f_inv * k_f * memory
         score -= k_f * score 
+
+    # success
+    for _ in range(succ):
+        memory += _m_f_inv * k_s * (1-memory) # long term memory
+        score += k_s * (1 - score)
+
+
 
     score += k_r*(memory - score) # pull score -> memory
     memory += k_m*(score - memory) # pull memory -> score
 
+
+
+#R_i = R_0 + k(1-R)
+#Rn​=1−(1−R0​)(1−k)**n
+
+#R_i = R_0 - kR
+#Rn​=R0​(1−k)**n
+
+k_r = .2 # score decay constant
+k_p = .1
+
+def update_2(TXS, TXF):
+    global memory, score
+    memory_after_succ = 1 - (1 - memory)*(1-k_s)**TXS
+    memory_after_fail = memory * (1-k_f)**TXF
+    memory += (memory_after_succ - memory) + (memory_after_fail - memory)
+
+    #memory += TXS * k_s - TXF * k_f
+    #memory = min(max(0, memory), 1) 
+
+    if not (TXS == TXF == 0):
+        instant_estimate = TXF / (TXF + TXS)
+        score += (instant_estimate - score) * k_p
+    
+    score = min(max(score, 0), 1)
+    memory = min(max(memory, 0), 1)
 
 WINDOW = 20
 
@@ -78,16 +111,31 @@ def margin(x, m):
     if abs(x) < m: return 0
     return math.copysign(1, x)
 
+def discretize(x, a):
+    return round(x / a) * a
+
+M_STEPS = 5
+
 try:
     while True:
         #time.sleep(.1)
         #q = margin(math.sin(time.time() * .1) + .5, .2)
-        q = margin(MOUSE_Y*2-1, .5)
-        update(q)
-        print(memory, score, q)
+        q = int(discretize((MOUSE_Y*2 - 1) * M_STEPS, 1))
+        tries = int(discretize((MOUSE_Y*5), 1))
+        
+        if tries == 0:
+            update_2(0, 0)
+        elif tries == M_STEPS:
+            update_2(0, tries)
+        else:
+            update_2(1, tries - 1)
+
+        #update(max(q, 0), abs(min(q, 0)))
+        print(memory, score, tries)
+
 
         x3.append(len(x3))
-        y3.append(q)
+        y3.append(tries)
 
         x.append(len(x))
         y.append(score)   # replace with your variable
@@ -114,11 +162,11 @@ try:
         ax.relim()
         ax.autoscale_view(True)
 
-        plt.pause(0.1)             # refresh plot
+        plt.pause(0.01)             # refresh plot
 except KeyboardInterrupt:
+    ax.set_xlim(x[0], x[-1])
+    ax.legend()
     pass
 
 while True:
-    ax.set_xlim(x[0], x[-1])
-    ax.legend()
     plt.pause(.01)
