@@ -34,7 +34,6 @@ void setup() {
   Serial.println();
 
   Serial.println("ESP8266 ESP-NOW Example");
-
   Serial.println("ROLE: SENDER");
 
   RobustMsg::printLocalMAC();
@@ -55,7 +54,8 @@ void setup() {
 enum UserCommand {
   SEND,
   HOP,
-  NO_OP
+  CURRENT_CHN,
+  NO_OP,
 };
 
 UserCommand processSerialInput() {
@@ -68,6 +68,9 @@ UserCommand processSerialInput() {
       case 'h':
         return HOP;
 
+      case 'c':
+        return CURRENT_CHN;
+
     }
   }
   return NO_OP;
@@ -77,6 +80,8 @@ void loop() {
   RobustMsg::processPendingOperations();
   UserCommand cm = processSerialInput();
 
+
+  // send a test packet
   if (cm == SEND) {
     outgoingMessage.counter = sendCounter++;
     outgoingMessage.temperature = random(200, 350) / 10.0;
@@ -101,12 +106,12 @@ void loop() {
 
   }
 
+
+  // perform a hop to random channel
   if (cm == HOP) {
     Serial.println("Hopping channel...");
     auto result = RobustMsg::hopChannel(random(1, 14));
     if (result == ErrorCode::OK) {
-      Serial.println("Channel hop ok, waiting for 5 seconds before sending next message...");
-      delay(5000);
       int ch = WiFi.channel();
       Serial.print("Current channel: ");
       Serial.println(ch);
@@ -116,6 +121,13 @@ void loop() {
       Serial.println((uint8_t)result);
     }
   }
+
+  if (cm == CURRENT_CHN) {
+    int ch = WiFi.channel();
+    Serial.print("Current channel: ");
+    Serial.println(ch);
+  }
+
 }
 
 

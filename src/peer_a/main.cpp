@@ -34,8 +34,7 @@ void setup() {
   Serial.println();
 
 
-  Serial.println("ESP8266 ESP-NOW Example");
-
+  Serial.println("ESP8266 ROBUST_MSG Example");
   Serial.println("ROLE: RECEIVER");
 
   RobustMsg::printLocalMAC();
