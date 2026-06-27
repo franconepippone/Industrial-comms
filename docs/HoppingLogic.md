@@ -96,7 +96,7 @@ $k$ è una costante temporale del filtro utilizzato per il calcolo di $D$. Un va
 
 In altre parole, diminuire $k$ rende il sistema più tollerante a disturbi transitori di durata più estesa, mentre un $k$ basso comporterebbe l'innesco di un hop anche per disturbi di brevissima estenzione temporale.
 
-La soglia di tollerenza $T_D$ esprime il valore percentuale di perdite oltre le quali il canale non è più ritenuto 
+La soglia di tollerenza $T_D$ esprime il valore percentuale di perdite oltre le quali il canale non è più ritenuto adeguato alla comunicazione. Può essere scelto a piacimento in base alla criticità del link.
 
 ### Scegliere $k_p$ e $k_s$
 
@@ -108,3 +108,10 @@ Tuttavia, nel contesto di **ARQ**, una trasmissione riuscita non è solo fine a 
 Ad esempio, considerando una trasmissione ARQ che impiega 5 tentativi per avere successo, si hanno quattro trasmissioni fallite e una trasmissione riuscita. Attenendosi alla regola precedente, la reputazione subirebbe un drastico decremento (1 *"step"* positivo con $k_p$ e 4 *"step"* negativi con $k_s$).
 
 Tuttavia, se con la reputazione R si vuole catturare l'effettiva capacità di un canale di effettuare un **Delivery end-to-end**, è ragionevole pensare che una trasmissione di successo (Delivery riuscito) abbia più valore di qualche ritrasmissione; dunque, si può pensare di impostare $k_s > k_p$ oppure $ks = G \cdot k_p$ con $G \in \mathbb{Z}$.
+
+### Scelta del TIMEOUT di riposo
+
+Dopo aver effettuato un hop su un altro canale, il canale di origine viene messo temporaneamente in *timeout*. Questo è per prevenire comportamenti oscillatori troppo rapidi in cui si continua a saltare in continuazione da un canale all'altro. In genere, il timeout può variare da qualche secondo a qualche minuto, in base a parametri come: 
+- estenzione temporale stimata degli eventuali disturbi (burst)
+- all'importanza che ha comunicare *esattamente* su quel canale.
+- altri parametri *user-specific*
