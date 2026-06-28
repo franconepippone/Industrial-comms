@@ -36,6 +36,8 @@ void setup() {
   Serial.println("ESP8266 ESP-NOW Example");
   Serial.println("ROLE: SENDER");
 
+  log_ui("IDENT", WiFi.macAddress(), "Peer-B (sender)");
+
   RobustMsg::printLocalMAC();
   RobustMsg::initialize(1, receiverMAC);
   RobustMsg::setProtocolParams({

@@ -1,6 +1,14 @@
 #include "robust_msg.h"
 
 
+String mac_to_string(const uint8_t mac[6]) {
+    char buf[18]; // "AA:BB:CC:DD:EE:FF" + null
+    snprintf(buf, sizeof(buf),
+             "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return String(buf);
+}
+
 void debugOnReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) {
     Serial.println();
     Serial.println("===== RECEIVE CALLBACK =====");
@@ -81,6 +89,7 @@ void RobustMsg::onDataSent(uint8 *mac_addr, uint8 sendStatus) {
     }
     #endif
 
+    
     sendResult.finished = true;
 }
 
@@ -97,8 +106,13 @@ void RobustMsg::onDataReceived(uint8 *mac_addr, uint8 *incomingData, uint8 len) 
 
     Header& hdr = *reinterpret_cast<Header*>(incomingData);
 
+    bool is_duplicate = hdr.nonce == latestPacketNonce;
+
+    // print python readable condensed log
+    log_ui("RECV", millis(), mac_to_string(mac_addr), len, hdr.nonce, hdr.packetId, is_duplicate);
+
     // assert is not duplicate
-    if (hdr.nonce == latestPacketNonce) {
+    if (is_duplicate) {
         Serial.println("Duplicate packet received, ignoring...");
         return;
     }
@@ -202,6 +216,7 @@ inline auto RobustMsg::sendMessage(u8* da, u8* data, unsigned int len, uint32 no
 
     // copy payload after header
     memcpy(outboundData + sizeof(Header), data, len);
+    
 
     #ifdef SIMULATE_FAULT
     if (os_random() % 5 == 0) { // simulate 20% packet loss
@@ -281,6 +296,8 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
             Serial.println("Send failed, retrying...");
             Serial.print("Retry attempt #");
             Serial.println(attempt + 1);
+
+            log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len, nonce, packId, attempt);
             
             attempt++;
             delay(params.RETRY_BASE_DELAY_MS);

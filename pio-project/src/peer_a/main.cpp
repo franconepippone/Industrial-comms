@@ -37,6 +37,8 @@ void setup() {
   Serial.println("ESP8266 ROBUST_MSG Example");
   Serial.println("ROLE: RECEIVER");
 
+  log_ui("IDENT", WiFi.macAddress(), "Peer-A (receiver)");
+
   RobustMsg::printLocalMAC();
   RobustMsg::initialize(1, receiverMAC);
   RobustMsg::setProtocolParams({

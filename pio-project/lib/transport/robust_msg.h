@@ -9,7 +9,29 @@ extern "C" {
 }
 
 
+// Use this function to log to the ui (python backed readable)
 
+#define BEGIN_SEQ_INDICATOR "&&&"
+#define SEPARATOR "::"
+
+// One or more arguments
+template<typename T, typename... Rest>
+void log_ui_print(const T& value, const Rest&... rest) {
+    Serial.print(value);
+
+    if constexpr (sizeof...(Rest) > 0) {
+        Serial.print(SEPARATOR);
+        log_ui_print(rest...);
+    }
+}
+
+// Public API
+template<typename... Args>
+void log_ui(const Args&... args) {
+    Serial.print(BEGIN_SEQ_INDICATOR);
+    log_ui_print(args...);
+    Serial.println();
+}
 
 #define PACKID_HOP_RQST 255
 #define PACKID_HOP_ACK 254
