@@ -53,16 +53,16 @@ Viene introdotta la reputazione ($R \in [0,1]$) di un canale, un indicatore di *
 
 Per il canale attivo, il valore di reputazione (R) va mantenuto aggiornato sul reale stato del canale in base delle nuove osservazioni. In particolare:
 - per ogni trasmissione fallita (TXF), R penalizzata con un fattore $k_p \in [0,1]$ : $R \leftarrow R - k_pR$
-- per ogni trasmissione riuscita (TXS), R è ricompensato con un fattore $k_r \in [0,1]$ : $R \leftarrow R + k_r(1-R)$
+- per ogni trasmissione riuscita (TXS), R è ricompensato con un fattore $k_s \in [0,1]$ : $R \leftarrow R + k_s(1-R)$
 
-Nel corso del tempo, alti numeri di trasmissioni riuscite spingono $R \rightarrow 1$, mentre alti numeri di trasmissioni fallite spingono $R \rightarrow 0$. Più le costanti di penalità $k_p$ e ricompensa $k_r$ sono piccole, più R evolve lentamente: la reputazione è più "difficile" da cambiare, si ripone più "fiducia" nel passato del canale.
-Allo stesso modo, più $k_p$ è grande rispetto a $k_r$, maggiore è l'impatto di una singola perdita sulla reputazione rispetto a un singolo successo. Di norma, $k_p > k_r$, ma una guida alla scelta più elaborata si può trovare [qui](#scelta-dei-parametri).
+Nel corso del tempo, alti numeri di trasmissioni riuscite spingono $R \rightarrow 1$, mentre alti numeri di trasmissioni fallite spingono $R \rightarrow 0$. Più le costanti di penalità $k_p$ e ricompensa $k_s$ sono piccole, più R evolve lentamente: la reputazione è più "difficile" da cambiare, si ripone più "fiducia" nel passato del canale.
+Allo stesso modo, più $k_p$ è grande rispetto a $k_s$, maggiore è l'impatto di una singola perdita sulla reputazione rispetto a un singolo successo. Di norma, $k_p > k_s$, ma una guida alla scelta più elaborata si può trovare [qui](#scelta-dei-parametri).
 
 Poichè in una singola iterazione si possono avere sia trasmissioni riuscite che trasmissioni fallite, la legge di aggiornamento complessiva prende la seguente forma chiusa (per il calcolo, consulta --):
 
 $$
 \begin{aligned}
-R_{i+1, succ} = 1 - (1 - R_i)(1-k_r)^{TXS} \\\\
+R_{i+1, succ} = 1 - (1 - R_i)(1-k_s)^{TXS} \\\\
 R_{i+1, fail} = R_i * (1-k_p)^{TXF}
 \end{aligned}
 $$
@@ -78,7 +78,7 @@ Il sistema realizzato è basato su due livelli:
 - Stima in tempo reale dello stato di degradazione del canale $D\%$ $\rightarrow$ *QUANDO effettuare hop*
 - Metrica di reputazione a lungo termine per ogni canale $R$, aggiornata col tempo $\rightarrow$ *a QUALE canale saltare*
 
-Assumendo una scelta ragionevole dei parametri $k, k_p, k_r$, il sistema riesce a far fronte a più possibili scenari:
+Assumendo una scelta ragionevole dei parametri $k, k_p, k_s$, il sistema riesce a far fronte a più possibili scenari:
 
 #### Burst di perdite
 
