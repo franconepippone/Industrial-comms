@@ -290,14 +290,14 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
 
         // if send callaback ran
         if (sendResult.finished) {
+            log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len, nonce, packId, attempt);
+
             if (sendResult.sendStatus == 0) return ErrorCode::OK; // on success
             
             // on failure, wait and retry
             Serial.println("Send failed, retrying...");
             Serial.print("Retry attempt #");
             Serial.println(attempt + 1);
-
-            log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len, nonce, packId, attempt);
             
             attempt++;
             delay(params.RETRY_BASE_DELAY_MS);
@@ -319,10 +319,13 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
 ErrorCode RobustMsg::hopChannel(uint8 newChannel) {
         
     chHopAck = 0; // reset ack before sending command
-   
+
+    log_ui("HOP", "INIT", newChannel);
+    
     // send channel change command to peer, reserved packetId 255 for channel change commands
     ErrorCode result = send((u8*)&newChannel, sizeof(newChannel), PACKID_HOP_RQST); 
     if (result != ErrorCode::OK) {
+        log_ui("HOP", "INITERR", result);
         Serial.print("Failed to send channel hop command, error code: ");
         Serial.println((uint8)result);
         return result;
@@ -338,8 +341,10 @@ ErrorCode RobustMsg::hopChannel(uint8 newChannel) {
         if (chHopAck != newChannel) return ErrorCode::CHANNEL_HOP_INVALID_ACK; // received ack but for wrong channel, possibly desynchronized state between peers
 
         Serial.println("Received channel hop ack from peer, switching channel");
+        log_ui("HOP", "GOTACK", newChannel);
         wifi_set_channel(newChannel);
         delay(1000); // wait a bit for channel switch to stabilize
+        log_ui("HOP", "CHANNEL", WiFi.channel());
         return ErrorCode::OK;
     }
     return ErrorCode::TIMEOUT;
@@ -353,10 +358,13 @@ void RobustMsg::processPendingOperations() {
         Serial.print("Processing deferred channel change to: ");
         Serial.println(pendingChannel);
 
+        log_ui("HOP", "GOTRQST", pendingChannel);
+
         // send ack back to peer
         ErrorCode result = send((u8*)&pendingChannel, sizeof(pendingChannel), PACKID_HOP_ACK);
         if (result != ErrorCode::OK) {
             Serial.print("Failed to send channel hop ack, error code: ");
+            log_ui("HOP", "ACKRFAIL", pendingChannel);
             Serial.println((uint8)result);
         } else {
             Serial.println("Channel hop ack sent successfully");
@@ -368,6 +376,7 @@ void RobustMsg::processPendingOperations() {
         int ch = WiFi.channel();
         Serial.print("Current channel: ");
         Serial.println(ch);
+        log_ui("HOP", "CHANNEL", ch);
     }
 }
 

@@ -15,9 +15,15 @@ extern "C" {
 #define SEPARATOR "::"
 
 // One or more arguments
+#include <type_traits>
+
 template<typename T, typename... Rest>
 void log_ui_print(const T& value, const Rest&... rest) {
-    Serial.print(value);
+    if constexpr (std::is_enum_v<T>) {
+        Serial.print(static_cast<std::underlying_type_t<T>>(value));
+    } else {
+        Serial.print(value);
+    }
 
     if constexpr (sizeof...(Rest) > 0) {
         Serial.print(SEPARATOR);
