@@ -1,37 +1,62 @@
+from typing import Callable
+from functools import partial
+from dashboard.app import MainDashboard
 import serial
 from serial.tools import list_ports
+import time
 
-from dashboard.app import App
+SERIAL = None
+_dashboard: MainDashboard | None = None
 
 def get_available_ports():
-    ports = list_ports.comports()
-    return [p.device for p in ports]
+    return [p.device for p in list_ports.comports()]
 
+def register_dashboard(dashboard: MainDashboard):
+    """Allows the UI to register a handler for incoming serial data."""
+    global _dashboard
+    _dashboard = dashboard
 
-LOGSEQ = r'&&&'
-
-def run(app: App):
+def parse_ui_logs(line: str) -> tuple[None | str, tuple[str, ...]]:
+    LOGSEQ = r'&&&'
+    if not line.startswith(LOGSEQ):
+        return None, tuple()
     
-    ser = serial.Serial('COM5', baudrate=115200)
-    ser.timeout = .1
+    line = line[3:]
+    args = line.split('::')
+    return args[0], tuple(args[1:])
 
-    print("reading")
+def initialize_serial(port: str):
+    global SERIAL
+    if SERIAL is None or not SERIAL.is_open:
+        SERIAL = serial.Serial(port, baudrate=115200, timeout=.1)
+        print(f"Serial connected to {port}")
+
+def run_serial_loop():
+    global SERIAL, _dashboard
+    print("Serial reader loop entering active state...")
+    
     while True:
-        line = ser.readline().decode(errors="ignore").strip()
-        if line == "":
-            continue
-        
-        if not line.startswith(LOGSEQ):
+        if _dashboard is None:
             continue
 
-        line = line[3:]
-        args = line.split('::')
-        command = args[0]
-        print(args)
 
-        match command:
-            case 'RECV':
-                mac, size, nonce, packid, time_ms = args[1:]
-                #app.logs.add('-> RX', mac, str(size))
-                app.call(app.logs.add, '-> RX', mac, str(size))
-
+        if SERIAL is None or not SERIAL.is_open:
+            time.sleep(0.5)
+            continue
+            
+        try:
+            line = SERIAL.readline().decode(errors="ignore").strip()
+            if not line:
+                continue
+            
+            command, args = parse_ui_logs(line)
+            
+            match command:
+                case 'RECV':
+                    print('GOT REXCV')
+                    partial(_dashboard.logs.add, 'hello')
+                    _dashboard._handle_backend_stream(partial(_dashboard.logs.add, 'hello', 'there', 'my', 'name'))
+                        
+        except serial.SerialException as e:
+            print(f"Serial error encountered: {e}")
+            time.sleep(1)
