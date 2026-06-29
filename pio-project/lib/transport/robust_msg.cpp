@@ -62,7 +62,7 @@ void debugOnSent(uint8 *mac_addr, uint8 sendStatus) {
 
 
 #define SERIAL_DEBUG
-//#define SIMULATE_FAULT 
+#define SIMULATE_FAULT 
 
 
 
@@ -216,14 +216,6 @@ inline auto RobustMsg::sendMessage(u8* da, u8* data, unsigned int len, uint32 no
 
     // copy payload after header
     memcpy(outboundData + sizeof(Header), data, len);
-    
-
-    #ifdef SIMULATE_FAULT
-    if (os_random() % 5 == 0) { // simulate 20% packet loss
-        Serial.println("Simulating send failure...");
-        return -1; // non-zero return value indicates failure in esp_now_send
-    }
-    #endif
 
     return esp_now_send(da, outboundData, sizeof(outboundData));
 }

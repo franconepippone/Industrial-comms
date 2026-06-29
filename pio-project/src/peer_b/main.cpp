@@ -95,8 +95,12 @@ void loop() {
 
     Serial.println();
     Serial.println("Sending packet...");
+    
+    // simulate random size
+    uint8_t packid = random(1, 100);
+    unsigned int size = random(sizeof(outgoingMessage)-10, sizeof(outgoingMessage)+10);
 
-    ErrorCode result = RobustMsg::send((uint8_t*) &outgoingMessage, sizeof(outgoingMessage), 5);
+    ErrorCode result = RobustMsg::send((uint8_t*) &outgoingMessage, size, packid);
 
 
     if (result == ErrorCode::OK) {

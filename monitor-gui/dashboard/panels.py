@@ -8,16 +8,24 @@ from nicegui import ui
 # Control Panel
 # =============================================================================
 
+from typing import Any, Callable, List, Optional
+from nicegui import ui
+
 class ControlPanel:
-    """Top panel."""
+    """Top control and configuration panel."""
 
     port_dropdown: Any
+    connect_button: Any
+    status_field: Any
     id_field: Any
     mac_field: Any
     slider_gain: Any
     slider_threshold: Any
     checkbox_enable: Any
     checkbox_logging: Any
+    
+    # Callback placeholder
+    connect_callback: Optional[Callable[[str], None]]
 
     def __init__(
         self,
@@ -28,28 +36,43 @@ class ControlPanel:
 
         if ports is None:
             ports = ["COM1", "COM3"]
+            
+        self.connect_callback = None
 
         with ui.expansion("Control Panel", icon="settings", value=True):
             with ui.column().classes("w-full gap-3"):
 
-                self.port_dropdown = ui.select(
-                    options=ports,
-                    value=ports[0],
-                    label="Serial Port",
-                ).classes("w-48")
+                # Row grouping for Serial configuration elements
+                with ui.row().classes("items-end gap-4 w-full"):
+                    self.port_dropdown = ui.select(
+                        options=ports,
+                        value=ports[0],
+                        label="Serial Port",
+                    ).classes("w-48")
+
+                    self.connect_button = ui.button(
+                        "Connect", 
+                        on_click=self._handle_connect
+                    ).props("elevated")
+
+                    # CHANGED: Increased size to 'w-80' and added a padding utility for clean colored backgrounds
+                    self.status_field = ui.input(
+                        label="Connection Status",
+                        value="Disconnected",
+                    ).props("readonly").classes("w-80 px-2 rounded transition-all")
 
                 self.id_field = ui.input(
                     label="Device ID",
                     value=device_id,
-                ).props("readonly")
+                ).props("readonly").classes("w-48")
 
                 self.mac_field = ui.input(
                     label="MAC Address",
                     value=mac,
-                ).props("readonly")
+                ).props("readonly").classes("w-48")
 
                 ui.separator()
-                ui.label("Example controls")
+                ui.label("Example controls").classes("text-xs font-bold text-gray-400 uppercase")
 
                 self.slider_gain = ui.slider(
                     min=0,
@@ -73,9 +96,37 @@ class ControlPanel:
                     value=False,
                 )
 
+    # --- Runtime Binding Hook Mechanics ---
+
+    def set_connect_callback(self, func: Callable[[str], None]) -> None:
+        """Binds an external connection engine function."""
+        self.connect_callback = func
+
+    def _handle_connect(self) -> None:
+        """Internal router triggering the bound execution engine."""
+        if self.connect_callback:
+            selected_port = self.get_selected_port()
+            self.connect_callback(selected_port)
+
+    # CHANGED: Added optional color string parameter (supports Hex, RGB, or LogColor values)
+    def set_connection_status(self, text: str, color: Optional[str] = None) -> None:
+        """Updates the inline outcome text box display text and background color."""
+        self.status_field.value = text
+        
+        if color:
+            # Treat .style like a dictionary to directly modify the property safely
+            self.status_field.style['background-color'] = color
+        else:
+            # Clear it or reset it back to transparent
+            self.status_field.style['background-color'] = 'transparent'
+            
+        self.status_field.update()
+
+    # --- Standard Field Getters and Setters ---
+
     def set_ports(self, ports: List[str]) -> None:
         self.port_dropdown.options = ports
-        self.port_dropdown.value = ports[0]
+        self.port_dropdown.value = ports[0] if ports else ""
         self.port_dropdown.update()
 
     def set_selected_port(self, port: str) -> None:
@@ -93,13 +144,32 @@ class ControlPanel:
         self.mac_field.value = value
         self.mac_field.update()
 
-
 # =============================================================================
 # Log Panel
 # =============================================================================
 
+from enum import Enum
+from typing import Any, Dict, List, Optional, Callable
+from nicegui import ui
+
+
+
+# Soft, clean pastel tones that look great on light-themed tables
+class LogColor(str, Enum):
+    SUCCESS = "#dcfce7"
+    WARNING = "#fef3c7"
+    ERROR = "#fee2e2"
+    INFO = "#dbeafe"
+
+# 1. Extensible Enum for Source Types
+class SourceType(str, Enum):
+    TX = "TX"
+    RX = "RX"
+    # To add more source types later, just add them here:
+    # EXAMPLE = "EXAMPLE"
+
 class LogPanel:
-    """Terminal-style log viewer."""
+    """Terminal-style log viewer with integrated toolbar controls."""
 
     rows: List[Dict[str, Any]]
     columns: List[Dict[str, str]]
@@ -109,38 +179,89 @@ class LogPanel:
     auto_toggle: Any
     scroll_container: Any
 
-    def __init__(self) -> None:
-        self.rows: List[Dict[str, Any]] = []
-        self.next_row_id: int = 0
-        self.auto_scroll: bool = True
+    # Toolbar Sender elements
+    send_button: ui.button
+    periodic_checkbox: ui.checkbox
+    interval_slider: ui.slider
+    timer: ui.timer
+    send_callback: Optional[Callable[[], None]]
 
-        self.columns: List[Dict[str, str]] = [
+    def __init__(self) -> None:
+        self.rows = []
+        self.next_row_id = 0
+        self.auto_scroll = True
+        self.send_callback = None
+
+        self.columns = [
             {"name": "source", "label": "Source", "field": "source"},
-            {"name": "timestamp", "label": "Timestamp", "field": "timestamp"},
+            {"name": "timestamp", "label": "Time (ms)", "field": "timestamp"},
             {"name": "mac", "label": "MAC", "field": "mac"},
+            {"name": "size", "label": "Size", "field": "size"},
+            {"name": "nonce", "label": "Nonce", "field": "nonce"},
+            {"name": "packid", "label": "Pack ID", "field": "packid"},
             {"name": "status", "label": "Status", "field": "status"},
         ]
 
+        # Initialize background timer for periodic triggering
+        self.timer = ui.timer(1.0, self._handle_send, active=False)
+
         with ui.expansion("Event Log", icon="list", value=True):
 
-            with ui.row().classes("items-center w-full"):
-                self.filter_source = ui.input(label="Source").classes("w-40")
+            # --- Unified Control Toolbar ---
+            with ui.row().classes("items-center w-full gap-4 mb-4 p-2 bg-slate-50 rounded-md"):
+                
+                # Group 1: Filters
+                self.filter_source = ui.select(
+                    options=[""] + [source.value for source in SourceType],
+                    value="",
+                    label="Source",
+                ).classes("w-36")
 
                 self.filter_status = ui.select(
                     ["", "INFO", "WARN", "ERROR", "OK"],
                     value="",
                     label="Status",
-                ).classes("w-32")
+                ).classes("w-28")
 
-                ui.button("Apply", on_click=self.apply_filters)
-                ui.button("Clear", on_click=self.clear_filters)
+                ui.button("Apply", on_click=self.apply_filters).props("flat color=primary")
+                ui.button("Clear", on_click=self.clear_filters).props("flat color=grey")
 
+                # Visual Separator between Filters and Sender Action Group
+                ui.element("div").classes("w-px h-8 bg-gray-300 mx-2")
+
+                # Group 2: Action Sender Panel
+                self.send_button = ui.button("Send", on_click=self._handle_send)
+
+                self.periodic_checkbox = ui.checkbox(
+                    "Periodic", 
+                    value=False, 
+                    on_change=self._toggle_periodic
+                )
+
+                # Dynamic Interval Slider (Visible only when 'Periodic' is checked)
+                with ui.row().classes("items-center gap-2").bind_visibility_from(self.periodic_checkbox, "value"):
+                    ui.label("Interval:")
+                    self.interval_slider = ui.slider(
+                        min=0.1, 
+                        max=10.0, 
+                        value=1.0, 
+                        step=0.1, 
+                        on_change=self._update_timer_interval
+                    ).classes("w-28")
+                    ui.label().bind_text_from(self.interval_slider, "value", backward=lambda v: f"{v:.1f}s")
+
+                # Disable 'Send' button if auto-periodic processing loop is executing
+                self.send_button.bind_enabled_from(self.periodic_checkbox, "value", backward=lambda v: not v)
+
+                # Push the Auto-scroll checkbox to the far right side
+                ui.element("div").classes("col-grow")
                 self.auto_toggle = ui.checkbox(
                     "Auto-scroll",
                     value=True,
                     on_change=self._toggle_autoscroll,
                 )
 
+            # --- Table Setup ---
             self.table = ui.table(
                 columns=self.columns,
                 rows=self.rows,
@@ -149,7 +270,7 @@ class LogPanel:
             self.table.add_slot(
                 "body",
                 """
-                <q-tr :props="props">
+                <q-tr :props="props" :style="props.row.color ? 'background-color: ' + props.row.color : ''">
                   <q-td v-for="col in props.cols" :key="col.name" :props="props">
                     {{ col.value }}
                   </q-td>
@@ -169,16 +290,59 @@ class LogPanel:
 
             self.table.move(self.scroll_container)
 
+    # --- Control Toolbar Logic Engines ---
+
+    def bind_send_callback(self, function: Callable[[], None]) -> None:
+        """Binds a parameterless runtime action callback."""
+        self.send_callback = function
+
+    def _handle_send(self) -> None:
+        """Triggers the bound execution loop handler."""
+        if self.send_callback:
+            self.send_callback()
+        else:
+            print('NO SEND CALLBACK', id(self))
+
+    def _toggle_periodic(self, e: Any) -> None:
+        if e.value:
+            self.timer.interval = self.interval_slider.value
+            self.timer.activate()
+        else:
+            self.timer.deactivate()
+
+    def _update_timer_interval(self, e: Any) -> None:
+        self.timer.interval = e.value
+
+    # --- Standard Panel Log Handlers ---
+
     def _toggle_autoscroll(self, e: Any) -> None:
         self.auto_scroll = bool(e.value)
 
-    def add(self, source: str, mac: str, status: str, timestamp: str) -> int:
+    def add(
+        self,
+        source: str,
+        mac: str,
+        status: str,
+        timestamp: str,
+        size: str = "",
+        nonce: str = "",
+        packid: str = "",
+        color: Optional[LogColor | str] = None,
+    ) -> int:
+        resolved_color = None
+        if color:
+            resolved_color = color.value if isinstance(color, LogColor) else color
+
         row: Dict[str, Any] = {
             "id": self.next_row_id,
             "source": source,
             "timestamp": timestamp,
             "mac": mac,
+            "size": size,
+            "nonce": nonce,
+            "packid": packid,
             "status": status,
+            "color": resolved_color,
         }
 
         self.next_row_id += 1
@@ -210,6 +374,21 @@ class LogPanel:
         self.table.rows = self.rows
         self.table.update()
 
+    def update_status_and_color(
+        self, row_id: int, status: str, color: Optional[LogColor | str]
+    ) -> None:
+        resolved_color = None
+        if color:
+            resolved_color = color.value if isinstance(color, LogColor) else color
+
+        for r in self.rows:
+            if r["id"] == row_id:
+                r["status"] = status
+                r["color"] = resolved_color
+                break
+        self.table.rows = self.rows
+        self.table.update()
+
     def set_status(self, row_id: int, status: str) -> None:
         self.set_field(row_id, "status", status)
 
@@ -233,8 +412,6 @@ class LogPanel:
 
         self.table.rows = filtered
         self.table.update()
-
-
 # =============================================================================
 # Plot Panel
 # =============================================================================
