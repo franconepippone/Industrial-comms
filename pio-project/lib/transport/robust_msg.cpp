@@ -106,6 +106,13 @@ void RobustMsg::onDataSent(uint8 *mac_addr, uint8 sendStatus) {
     }
     #endif
 
+    // globally keeps track of how many successes / fails we had so far in transmitting
+    if (sendResult.sendStatus == 0) {
+        TX_succ_cnt++;
+    } else {
+        TX_fail_cnt++;
+    }
+
     sendResult.finished = true;
 }
 

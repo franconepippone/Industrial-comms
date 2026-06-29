@@ -1,5 +1,8 @@
 from datetime import datetime
-from typing import Any, List, Dict, Tuple, Optional
+from typing import Any, List, Dict, Tuple, Optional, List, Callable
+
+from enum import Enum
+from typing import Any, Dict, List, Optional, Callable
 
 from nicegui import ui
 
@@ -7,18 +10,6 @@ from nicegui import ui
 # =============================================================================
 # Control Panel
 # =============================================================================
-
-from typing import Any, Callable, List, Optional
-from nicegui import ui
-
-from typing import Any, List, Optional, Callable
-from nicegui import ui
-
-from typing import Any, List, Optional, Callable
-from nicegui import ui
-
-from typing import Any, List, Optional, Callable
-from nicegui import ui
 
 class ControlPanel:
     """Top control and configuration panel."""
@@ -200,11 +191,6 @@ class ControlPanel:
 # Log Panel
 # =============================================================================
 
-from enum import Enum
-from typing import Any, Dict, List, Optional, Callable
-from nicegui import ui
-
-
 
 # Soft, clean pastel tones that look great on light-themed tables
 class LogColor(str, Enum):
@@ -219,15 +205,6 @@ class SourceType(str, Enum):
     RX = "RX"
     # To add more source types later, just add them here:
     # EXAMPLE = "EXAMPLE"
-
-from typing import Any, List, Dict, Optional, Callable
-from nicegui import ui
-
-from typing import Any, List, Dict, Optional, Callable
-from nicegui import ui
-
-from typing import Any, List, Dict, Optional, Callable
-from nicegui import ui
 
 class LogPanel:
     """Terminal-style log viewer with integrated toolbar controls."""
@@ -509,105 +486,200 @@ class LogPanel:
 # Plot Panel
 # =============================================================================
 
+from typing import Any, Dict, List, Tuple
+from collections import deque
+import time
+
+from nicegui import ui
+
+
+from typing import Any, Dict, List, Tuple
+from collections import deque
+import time
+
+from nicegui import ui
+
+from typing import Any, Dict, List, Tuple
+from collections import deque
+import time
+
+from nicegui import ui
+
+
 class PlotPanel:
     """Streaming charts panel."""
 
-    window_size: int
-    series_names: List[str]
-
-    x: List[Any]
-    trace1: List[float]
-    trace2: List[float]
-
-    bar_chart: Any
-    xy_chart: Any
-
     def __init__(
         self,
-        window_size: int = 60,
-        series_names: Tuple[str, str] = ("A", "B"),
+        window_size: int = 5,
+        refresh_rate: float = 2,
+        series_names: Tuple[str, str] = ("Reputation", "Degradation Estimate"),
     ) -> None:
 
-        self.window_size = window_size
+        self.window_size = float(window_size)
         self.series_names = list(series_names)
 
-        self.x: List[Any] = []
-        self.trace1: List[float] = []
-        self.trace2: List[float] = []
+        self.refresh_period = 1.0 / refresh_rate
+        self._last_update = 0.0
 
-        self.highlight: int = 0
+        self.x = deque()
+        self.trace1 = deque()
+        self.trace2 = deque()
+
+        # BAR STATE
+        self.bar_values = [0.0] * 14
+        self.highlight = 1
+
+        self._bar_dirty = False
+        self._line_dirty = False
 
         with ui.expansion("Plots", icon="bar_chart", value=True):
+
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Window (s)").classes("text-xs")
+
+                ui.slider(
+                    min=1,
+                    max=5,
+                    step=1,
+                    value=window_size,
+                    on_change=lambda e: self.set_window_size(int(e.value)),
+                ).props("label label-always dense").classes("w-32")
 
             self.bar_chart = ui.echart({
                 "xAxis": {"type": "category", "data": list(range(1, 15))},
                 "yAxis": {"type": "value", "min": 0, "max": 1},
-                "series": [{"type": "bar", "data": [0] * 14}],
+                "series": [{
+                    "type": "bar",
+                    "data": [0] * 14,
+                }],
             }).classes("w-full h-64")
 
             self.xy_chart = ui.echart({
                 "legend": {"data": self.series_names},
-                "xAxis": {"type": "category", "data": []},
+                "xAxis": {"type": "value"},
                 "yAxis": {"type": "value", "min": 0, "max": 1},
                 "series": [
-                    {"name": self.series_names[0], "type": "line", "data": []},
-                    {"name": self.series_names[1], "type": "line", "data": []},
+                    {
+                        "name": self.series_names[0],
+                        "type": "line",
+                        "data": [],
+                        "showSymbol": False,
+                    },
+                    {
+                        "name": self.series_names[1],
+                        "type": "line",
+                        "data": [],
+                        "showSymbol": False,
+                    },
                 ],
             }).classes("w-full h-72")
 
-        self.highlight_bar(1)
+        self._render_bar()
 
+        ui.timer(1 / refresh_rate, self._flush_updates)
+
+    # -----------------------
+    # WINDOW
+    # -----------------------
     def set_window_size(self, size: int) -> None:
-        self.window_size = size
-        self._apply_window()
+        self.window_size = float(size)
+        self._line_dirty = True
 
+    # -----------------------
+    # SERIES
+    # -----------------------
     def set_series_names(self, name1: str, name2: str) -> None:
         self.series_names = [name1, name2]
-
         self.xy_chart.options["legend"]["data"] = self.series_names
         self.xy_chart.options["series"][0]["name"] = name1
         self.xy_chart.options["series"][1]["name"] = name2
         self.xy_chart.update()
 
-    def highlight_bar(self, index: int) -> None:
-        data: List[Dict[str, Any]] = [
+    # -----------------------
+    # LINE DATA
+    # -----------------------
+    def append(self, t: float, v1: float, v2: float) -> None:
+        self.x.append(t)
+        self.trace1.append(v1)
+        self.trace2.append(v2)
+
+        cutoff = t - self.window_size
+        while self.x and self.x[0] < cutoff:
+            self.x.popleft()
+            self.trace1.popleft()
+            self.trace2.popleft()
+
+        self._line_dirty = True
+
+    def set_data(self, data: List[Tuple[float, float, float]]) -> None:
+        self.x = deque(d[0] for d in data)
+        self.trace1 = deque(d[1] for d in data)
+        self.trace2 = deque(d[2] for d in data)
+        self._line_dirty = True
+
+    def clear_plot(self) -> None:
+        self.x.clear()
+        self.trace1.clear()
+        self.trace2.clear()
+        self._line_dirty = True
+
+    # -----------------------
+    # BAR CHART
+    # -----------------------
+    def _render_bar(self) -> None:
+        self.bar_chart.options["series"][0]["data"] = [
             {
-                "value": 1 if i == index - 1 else 0.3,
+                "value": self.bar_values[i],
                 "itemStyle": {
-                    "color": "#1976d2" if i == index - 1 else "#cccccc"
+                    "color": "#1976d2" if i == self.highlight - 1 else "#cccccc"
                 },
             }
             for i in range(14)
         ]
-
-        self.bar_chart.options["series"][0]["data"] = data
         self.bar_chart.update()
 
-    def append(self, t: Any, v1: float, v2: float) -> None:
-        self.x.append(t)
-        self.trace1.append(v1)
-        self.trace2.append(v2)
-        self._apply_window()
+    def highlight_bar(self, index: int) -> None:
+        self.highlight = index
+        self._render_bar()
 
-    def set_data(self, data: List[Tuple[Any, float, float]]) -> None:
-        self.x = [d[0] for d in data]
-        self.trace1 = [d[1] for d in data]
-        self.trace2 = [d[2] for d in data]
-        self._apply_window()
+    def set_bar(self, index: int, value: float) -> None:
+        if not 1 <= index <= 14:
+            return
 
+        self.bar_values[index - 1] = value
+        self.highlight = index
+        self._render_bar()
+
+    def clear_bars(self) -> None:
+        self.bar_values = [0.5] * 14
+        self.highlight = 1
+        self._render_bar()
+
+    # -----------------------
+    # GLOBAL CLEAR
+    # -----------------------
     def clear(self) -> None:
-        self.x.clear()
-        self.trace1.clear()
-        self.trace2.clear()
-        self._apply_window()
+        self.clear_plot()
+        self.clear_bars()
 
-    def _apply_window(self) -> None:
-        if len(self.x) > self.window_size:
-            self.x = self.x[-self.window_size:]
-            self.trace1 = self.trace1[-self.window_size:]
-            self.trace2 = self.trace2[-self.window_size:]
+    # -----------------------
+    # UPDATE LOOP
+    # -----------------------
+    def _flush_updates(self) -> None:
+        now = time.perf_counter()
+        if now - self._last_update < self.refresh_period:
+            return
 
-        self.xy_chart.options["xAxis"]["data"] = self.x
-        self.xy_chart.options["series"][0]["data"] = self.trace1
-        self.xy_chart.options["series"][1]["data"] = self.trace2
-        self.xy_chart.update()
+        self._last_update = now
+
+        if self._line_dirty:
+            if self.x:
+                newest = self.x[-1]
+                self.xy_chart.options["xAxis"]["min"] = newest - self.window_size
+                self.xy_chart.options["xAxis"]["max"] = newest
+
+            self.xy_chart.options["series"][0]["data"] = list(zip(self.x, self.trace1))
+            self.xy_chart.options["series"][1]["data"] = list(zip(self.x, self.trace2))
+            self.xy_chart.update()
+            self._line_dirty = False

@@ -1,3 +1,4 @@
+#pragma once
 #include <Arduino.h>
 
 #include <ESP8266WiFi.h>
@@ -85,12 +86,17 @@ public:
         uint32 CHANNEL_HOP_TIMEOUT_MS;
     };
 
+    // global counters for tx succ/fail for external usage (i.e. hop controller)
+    inline static uint64_t TX_succ_cnt = 0;
+    inline static uint64_t TX_fail_cnt = 0;
+
 private:
     inline static uint8 peerMAC[6] = {0};
     inline static bool isInit = false;
     inline static robust_msg_recv_callback userRecvCallback = nullptr;
     inline static uint32 latestPacketNonce = 0; // for duplicate detection
     inline static uint8 chHopAck = 0;
+
     
     // Deferred operation flags (set by callbacks, executed in main loop)
     inline static volatile bool pendingChannelChange = false;

@@ -91,6 +91,9 @@ def run_serial_loop():
     # handles simulated fault probability change
     _dashboard.controls.bind_callbacks(change_ack_loss_p, change_send_loss_p)
 
+    for i in range(14):
+        _dashboard.plots.set_bar(i, .8)
+
     while True:
         if _dashboard is None:
             continue
@@ -105,7 +108,7 @@ def run_serial_loop():
             if not line:
                 continue
 
-            print("BOARD ECHO >>> \t", line)
+            #print("BOARD ECHO >>> \t", line)
             
             command, args = parse_ui_logs(line)
             
@@ -120,7 +123,6 @@ def run_serial_loop():
                     _dashboard.logs.add('RX', mac, status, time_ms, size, nonce, packid, color)
                         
                 case 'SEND':
-                    MAX_ATTEMPTS = 5
 
                     print('GOT SEND:', args)
                     time_ms, mac, status, size, nonce, packid, attempt_n, err_code = args
@@ -130,7 +132,7 @@ def run_serial_loop():
                     
 
                     mac = '(to) ' + mac
-                    status_str = 'OK' if status != 0 else f'ERR ({status})'
+                    status_str = 'OK' if int(status) == 0 else f'ERR {status}'
                     if err_code == "timeout":
                         status_str = 'T/O '
                         color = LogColor.ERROR
@@ -147,6 +149,16 @@ def run_serial_loop():
                     _dashboard.controls.set_id(name)
                     _dashboard.controls.set_mac(mac)
 
+                case 'HOPCTRL':
+                    print('GoT HOPCTRL', args)
+                    time_ms, current_ch, D, R = args
+
+                    time_s = int(time_ms) / 1000
+                    D = float(D)
+                    R = float(R)
+
+                    _dashboard.plots.append(time_s, R, D)
+                    _dashboard.plots.set_bar(int(current_ch), R)
                 
 
         except Exception as e:

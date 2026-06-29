@@ -1,12 +1,14 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include "robust_msg.h"
+#include "hop_controller.h"
 
 #include "commands.h"
 
 
 uint8_t receiverMAC[6] = {0xE0, 0x98, 0x06, 0x85, 0xAC, 0x69};
 
+HopController hopctrl;
 
 // ============================================================
 // DATA STRUCTURE
@@ -39,12 +41,19 @@ void setup() {
   
   log_ui("IDENT", WiFi.macAddress(), "Peer-B (sender)");
 
+  hopctrl.params = {
+    .d_treeshold = .8,
+    .k_d = .5,
+    .k_s = .01,
+    .k_f = .005
+}; 
+
   RobustMsg::printLocalMAC();
   RobustMsg::initialize(1, receiverMAC);
   RobustMsg::setProtocolParams({
     .RETRY_MAX_AMOUNT = 10,
-    .RETRY_BASE_DELAY_MS = 100,
-    .SEND_TIMEOUT_MS = 1000,
+    .RETRY_BASE_DELAY_MS = 50,
+    .SEND_TIMEOUT_MS = 500,
     .CHANNEL_HOP_TIMEOUT_MS = 2000
   });
 
@@ -57,6 +66,7 @@ void setup() {
 void loop() {
   RobustMsg::processPendingOperations();
   UserCommand cm = processSerialInput();
+  hopctrl.process(500);
 
 
   // send a test packet
