@@ -10,6 +10,8 @@ uint8_t receiverMAC[6] = {0xE0, 0x98, 0x06, 0x85, 0xAC, 0x69};
 
 HopController hopctrl;
 
+
+
 // ============================================================
 // DATA STRUCTURE
 // ============================================================
@@ -48,7 +50,25 @@ void setup() {
     .k_d = .5,
     .k_s = .01,
     .k_f = .005
-}; 
+  }; 
+
+  float reps[14] = {
+    .42, // ch1 
+    .55, // ch2 
+    .60, // ch3 
+    .58, // ch4 
+    .52, // ch5 
+    .40, // ch6 
+    .48, // ch7 
+    .62, // ch8 
+    .70, // ch9 
+    .68, // ch10
+    .45, // ch11
+    .50, // ch12
+    .57, // ch13
+    .10   // ch14
+  };
+  hopctrl.setReputations(reps);
 
   RobustMsg::printLocalMAC();
   RobustMsg::initialize(1, receiverMAC);
@@ -104,7 +124,7 @@ void loop() {
   // perform a hop to random channel
   if (cm == HOP) {
     Serial.println("Hopping channel...");
-    auto result = RobustMsg::hopChannel(random(1, 14));
+    auto result = hopctrl.forceHop(random(1, 14));
     if (result == ErrorCode::OK) {
       int ch = WiFi.channel();
       Serial.print("Current channel: ");
@@ -124,6 +144,7 @@ void loop() {
 
   if (cm == IDENT_RQST) {
     log_ui("IDENT", WiFi.macAddress(), "Peer-B (sender)");
+    hopctrl.logAllReps(); // fill all bars with initial value
   }
 
   if (cm == ACK_LOSS_P) {

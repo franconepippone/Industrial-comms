@@ -203,7 +203,7 @@ def run_serial_loop():
                         log_hop(f'INIT (ch {ch})', LogColor.LOG_INFO)
                     elif subcomm == 'CHANNEL':
                         log_hop(f'CURRENT CH: {ch}', LogColor.LOG_INFO)
-                        _dashboard.plots.clear()
+                        _dashboard.plots.clear_plot()
                     elif subcomm == 'GOTACK':
                         log_hop(f'GOTACK (ch {ch})', LogColor.LOG_INFO)
                     elif subcomm == 'GOTRQST':
