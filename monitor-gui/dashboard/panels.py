@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Callable
 
 from nicegui import ui
+from nicegui.events import ValueChangeEventArguments
 
 
 # =============================================================================
@@ -78,6 +79,12 @@ class ControlPanel:
                 ui.separator()
                 ui.label("Controls").classes("text-xs font-bold text-gray-400 uppercase")
 
+                self.checkbox_echo_serial = ui.checkbox(
+                    "Echo serial output",
+                    value=False,
+                    on_change=lambda x: None
+                )
+
                 # Simulate losses checkbox
                 self.checkbox_simulate_losses = ui.checkbox(
                     "Simulate losses",
@@ -124,6 +131,9 @@ class ControlPanel:
     def set_connect_callback(self, func: Callable[[str], None]) -> None:
         """Binds an external connection engine function."""
         self.connect_callback = func
+    
+    def set_echo_toggle_callback(self, func: Callable[[bool], None]) -> None:
+        self.checkbox_echo_serial.on_value_change(lambda v: func(bool(v.value)))
 
     def bind_callbacks(self, ack_callback: Callable[[float], None], pkt_callback: Callable[[float], None]) -> None:
         """NEW: Single method to bind both loss simulation engine callbacks at once."""
@@ -196,8 +206,10 @@ class ControlPanel:
 class LogColor(str, Enum):
     SUCCESS = "#dcfce7"
     WARNING = "#fef3c7"
-    ERROR = "#fee2e2"
+    ERROR = "#ffc6c6"
     INFO = "#dbeafe"
+    LOG_INFO = "#f6e0ff"
+    LOG_ERROR = "#ffa3e3"
 
 # 1. Extensible Enum for Source Types
 class SourceType(str, Enum):
@@ -224,12 +236,14 @@ class LogPanel:
     interval_slider: ui.slider
     timer: ui.timer
     send_callback: Optional[Callable[[], None]]
+    hop_callback: Optional[Callable[[], None]]
 
     def __init__(self) -> None:
         self.rows = []
         self.next_row_id = 0
         self.auto_scroll = True
         self.send_callback = None
+        self.hop_callback = None
 
         # 1. NEW: Force a rigid layout on both tables and prevent text overflow
         ui.add_css("""
@@ -291,6 +305,8 @@ class LogPanel:
                     value=False, 
                     on_change=self._toggle_periodic
                 )
+
+                self.hop_button = ui.button("Hop", on_click=self._handle_hop)
 
                 # Dynamic Interval Slider (Visible only when 'Periodic' is checked)
                 with ui.row().classes("items-center gap-2").bind_visibility_from(self.periodic_checkbox, "value"):
@@ -364,6 +380,10 @@ class LogPanel:
     def bind_send_callback(self, function: Callable[[], None]) -> None:
         """Binds a parameterless runtime action callback."""
         self.send_callback = function
+    
+    def bind_hop_callback(self, function: Callable[[], None]) -> None:
+        """Binds a parameterless runtime action callback."""
+        self.hop_callback = function
 
     def _handle_send(self) -> None:
         """Triggers the bound execution loop handler."""
@@ -371,6 +391,13 @@ class LogPanel:
             self.send_callback()
         else:
             print('NO SEND CALLBACK', id(self))
+    
+    def _handle_hop(self) -> None:
+        """Triggers the bound execution loop handler."""
+        if self.hop_callback:
+            self.hop_callback()
+        else:
+            print('NO HOP CALLBACK', id(self))
 
     def _toggle_periodic(self, e: Any) -> None:
         if e.value:
@@ -511,7 +538,7 @@ class PlotPanel:
 
     def __init__(
         self,
-        window_size: int = 5,
+        window_size: int = 10,
         refresh_rate: float = 2,
         series_names: Tuple[str, str] = ("Reputation", "Degradation Estimate"),
     ) -> None:
@@ -540,7 +567,7 @@ class PlotPanel:
 
                 ui.slider(
                     min=1,
-                    max=5,
+                    max=10,
                     step=1,
                     value=window_size,
                     on_change=lambda e: self.set_window_size(int(e.value)),
@@ -605,7 +632,8 @@ class PlotPanel:
         self.trace2.append(v2)
 
         cutoff = t - self.window_size
-        while self.x and self.x[0] < cutoff:
+        MARGIN = 1 # additional margin for better displaying
+        while self.x and self.x[0] < (cutoff - MARGIN):
             self.x.popleft()
             self.trace1.popleft()
             self.trace2.popleft()
@@ -645,7 +673,7 @@ class PlotPanel:
 
     def set_bar(self, index: int, value: float) -> None:
         if not 1 <= index <= 14:
-            return
+            raise ValueError("Attempted set bar outside range")
 
         self.bar_values[index - 1] = value
         self.highlight = index

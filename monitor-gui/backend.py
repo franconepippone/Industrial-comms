@@ -49,12 +49,20 @@ def initialize_serial(port: str):
         _dashboard.controls.set_connection_status(f'Connection successfull to {port}')
     print(f"Serial connected to {port}")
 
-def _send_serial(data: bytes) -> serial.Serial | None:
+
+
+
+QUEUED_SENDS: int = 0
+
+
+def _send_serial(data: bytes) -> bool:
     if SERIAL and SERIAL.open:
         print('sending to serial ->', data)
         SERIAL.write(data)
+        return True
     else:
         print('Serial is not opened, could not send', data)
+        return False
 
 def request_ident():
     _send_serial(b'i')
@@ -68,7 +76,15 @@ def change_ack_loss_p(p: float):
     _send_serial(f"a{n}\n".encode())
 
 def request_send():
-    _send_serial(b's')
+    global QUEUED_SENDS
+    if QUEUED_SENDS > 5:
+        print('Sending too fast, cannot send')
+        return
+    
+    if _send_serial(b's'): QUEUED_SENDS += 1
+
+def request_hop():
+    _send_serial(b'h')
 
 def run_serial_loop():
     global SERIAL, _dashboard
@@ -80,18 +96,26 @@ def run_serial_loop():
 
     print('DASHBOARD FOUND')
     
-    # handles sending arbitrary message
+    ECHO_SER = False
+    def set_echo(v):
+        nonlocal ECHO_SER
+        ECHO_SER = v
+
+    # handles sending and hopping on demand
     _dashboard.logs.bind_send_callback(request_send)
+    _dashboard.logs.bind_hop_callback(request_hop)
     print(_dashboard.logs.send_callback, id(_dashboard))
 
     # handles selecting and connecting to serial
     _dashboard.controls.set_ports(get_available_ports())
     _dashboard.controls.set_connect_callback(initialize_serial)
+    _dashboard.controls.set_echo_toggle_callback(set_echo)
     
     # handles simulated fault probability change
     _dashboard.controls.bind_callbacks(change_ack_loss_p, change_send_loss_p)
 
-    for i in range(14):
+
+    for i in range(1, 15):
         _dashboard.plots.set_bar(i, .8)
 
     while True:
@@ -107,8 +131,9 @@ def run_serial_loop():
             line = SERIAL.readline().decode(errors="ignore").strip()
             if not line:
                 continue
-
-            #print("BOARD ECHO >>> \t", line)
+            
+            if ECHO_SER:
+                print("BOARD ECHO >>> \t", line)
             
             command, args = parse_ui_logs(line)
             
@@ -139,6 +164,11 @@ def run_serial_loop():
                     if err_code == "maxretries":
                         status_str = 'REX'
                     
+                    global QUEUED_SENDS
+                    if QUEUED_SENDS > 0 and int(status) == 0:
+                        QUEUED_SENDS -= 1 # consume one send if succesfull
+                        print("QUEUED SENDS: ", QUEUED_SENDS)
+                    
                     status_str += f' (retry# {attempt_n})' if int(attempt_n) != 0 else ''
                     
 
@@ -159,6 +189,29 @@ def run_serial_loop():
 
                     _dashboard.plots.append(time_s, R, D)
                     _dashboard.plots.set_bar(int(current_ch), R)
+                
+                case 'HOP':
+                    subcomm, args = args[0], args[1:]
+                    time_ms, ch  = args
+                    err_code = ch # for usage in err subcommands
+
+                    def log_hop(status: str, color: LogColor):
+                        if _dashboard:
+                            _dashboard.logs.add('HOP', '---', status, time_ms, '---', '---', '---', color)
+
+                    if subcomm == "INIT":
+                        log_hop(f'INIT (ch {ch})', LogColor.LOG_INFO)
+                    elif subcomm == 'CHANNEL':
+                        log_hop(f'CURRENT CH: {ch}', LogColor.LOG_INFO)
+                        _dashboard.plots.clear()
+                    elif subcomm == 'GOTACK':
+                        log_hop(f'GOTACK (ch {ch})', LogColor.LOG_INFO)
+                    elif subcomm == 'GOTRQST':
+                        log_hop(f'GOTRQST (ch {ch})', LogColor.LOG_INFO)
+                    elif subcomm == 'INITERR':
+                        log_hop(f'INITERR (ch {ch})', LogColor.LOG_ERROR)
+                    elif subcomm == 'ACKRFAIL':
+                        log_hop(f'ACKR FAIL (ch {ch})', LogColor.LOG_ERROR)
                 
 
         except Exception as e:
