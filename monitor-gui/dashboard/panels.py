@@ -11,6 +11,12 @@ from nicegui import ui
 from typing import Any, Callable, List, Optional
 from nicegui import ui
 
+from typing import Any, List, Optional, Callable
+from nicegui import ui
+
+from typing import Any, List, Optional, Callable
+from nicegui import ui
+
 class ControlPanel:
     """Top control and configuration panel."""
 
@@ -19,13 +25,14 @@ class ControlPanel:
     status_field: Any
     id_field: Any
     mac_field: Any
-    slider_gain: Any
-    slider_threshold: Any
-    checkbox_enable: Any
-    checkbox_logging: Any
     
-    # Callback placeholder
+    # Control Elements
+    checkbox_simulate_losses: Any
+    slider_loss_percentage: Any
+    
+    # Callback placeholders
     connect_callback: Optional[Callable[[str], None]]
+    loss_update_callback: Optional[Callable[[float], None]]
 
     def __init__(
         self,
@@ -38,6 +45,7 @@ class ControlPanel:
             ports = ["COM1", "COM3"]
             
         self.connect_callback = None
+        self.loss_update_callback = None
 
         with ui.expansion("Control Panel", icon="settings", value=True):
             with ui.column().classes("w-full gap-3"):
@@ -55,7 +63,6 @@ class ControlPanel:
                         on_click=self._handle_connect
                     ).props("elevated")
 
-                    # CHANGED: Increased size to 'w-80' and added a padding utility for clean colored backgrounds
                     self.status_field = ui.input(
                         label="Connection Status",
                         value="Disconnected",
@@ -72,29 +79,31 @@ class ControlPanel:
                 ).props("readonly").classes("w-48")
 
                 ui.separator()
-                ui.label("Example controls").classes("text-xs font-bold text-gray-400 uppercase")
+                ui.label("Controls").classes("text-xs font-bold text-gray-400 uppercase")
 
-                self.slider_gain = ui.slider(
-                    min=0,
-                    max=100,
-                    value=50,
-                )
-
-                self.slider_threshold = ui.slider(
-                    min=0,
-                    max=100,
-                    value=20,
-                )
-
-                self.checkbox_enable = ui.checkbox(
-                    "Enable feature",
-                    value=True,
-                )
-
-                self.checkbox_logging = ui.checkbox(
-                    "Verbose logging",
+                # Simulate losses checkbox
+                self.checkbox_simulate_losses = ui.checkbox(
+                    "Simulate losses",
                     value=False,
+                    on_change=self._handle_loss_change
                 )
+
+                # CHANGED: Wrapped slider & text indicator in a row bound to the checkbox visibility
+                with ui.row().classes("items-center gap-4 w-full").bind_visibility_from(self.checkbox_simulate_losses, 'value'):
+                    self.slider_loss_percentage = ui.slider(
+                        min=0,
+                        max=100,
+                        step=1,
+                        value=0,
+                        on_change=self._handle_loss_change
+                    ).classes("w-64")
+                    
+                    # NEW: Label that automatically binds to and formats the slider's value
+                    ui.label().bind_text_from(
+                        self.slider_loss_percentage, 
+                        'value', 
+                        backward=lambda v: f"{int(v)}%"
+                    ).classes("text-sm font-bold text-gray-700 w-12")
 
     # --- Runtime Binding Hook Mechanics ---
 
@@ -102,22 +111,36 @@ class ControlPanel:
         """Binds an external connection engine function."""
         self.connect_callback = func
 
+    def set_loss_update_callback(self, func: Callable[[float], None]) -> None:
+        """Binds an external function to respond to loss simulation changes."""
+        self.loss_update_callback = func
+
     def _handle_connect(self) -> None:
         """Internal router triggering the bound execution engine."""
         if self.connect_callback:
             selected_port = self.get_selected_port()
             self.connect_callback(selected_port)
 
-    # CHANGED: Added optional color string parameter (supports Hex, RGB, or LogColor values)
+    def _handle_loss_change(self) -> None:
+        """
+        Internal router handling both checkbox and slider mutations.
+        Passes 0 if simulation is disabled, otherwise passes the slider value.
+        """
+        if self.loss_update_callback:
+            if self.checkbox_simulate_losses.value:
+                current_loss = self.slider_loss_percentage.value
+            else:
+                current_loss = 0.0
+                
+            self.loss_update_callback(current_loss)
+
     def set_connection_status(self, text: str, color: Optional[str] = None) -> None:
         """Updates the inline outcome text box display text and background color."""
         self.status_field.value = text
         
         if color:
-            # Treat .style like a dictionary to directly modify the property safely
             self.status_field.style['background-color'] = color
         else:
-            # Clear it or reset it back to transparent
             self.status_field.style['background-color'] = 'transparent'
             
         self.status_field.update()

@@ -65,12 +65,12 @@ void debugOnSent(uint8 *mac_addr, uint8 sendStatus) {
 #define SIMULATE_FAULT
 
 #ifdef SIMULATE_FAULT
-int _fault_n = 5; // 20% by default
+int _fault_prob = 5; // 20% by default
 #endif
 
-void set_simulation_fault_prob(float p) {
+void set_simulation_fault_n(int p) {
     #ifdef SIMULATE_FAULT
-    _fault_n = (int)(1.0/p);
+    _fault_prob = p;
     #endif
 }
 
@@ -92,7 +92,7 @@ void RobustMsg::onDataSent(uint8 *mac_addr, uint8 sendStatus) {
 
     #ifdef SIMULATE_FAULT
     // simulate 20% send failure by randomly setting sendStatus to non-zero
-    if (os_random() % _fault_n == 0) {
+    if (os_random() % 100 < _fault_prob) {
         Serial.println("Simulating send failure in callback...");
         sendResult.sendStatus = 1; // non-zero indicates failure
     }
@@ -291,7 +291,7 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
 
         // if send callaback ran
         if (sendResult.finished) {
-            log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len, nonce, packId, attempt);
+            log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len, nonce, packId, attempt, "running");
 
             if (sendResult.sendStatus == 0) return ErrorCode::OK; // on success
             
@@ -307,12 +307,14 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
 
         uint32 elapsed = millis() - startTime; // assuming difference fits inside uint32
         if (elapsed > params.SEND_TIMEOUT_MS) {
+            log_ui("SEND", millis(), mac_to_string(peerMAC), 1, len, nonce, packId, attempt, "timeout");
             Serial.println("ARQ timeout reached, aborting send");
             return ErrorCode::TIMEOUT; // timed out
         }
         // this delay is absolutely necessary to let the backround esp-now callback run. Removing it cause callback to fail
         delay(5); // TODO adjust this (can probably be lower)
     }
+    log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len, nonce, packId, attempt, "maxretries");
     return ErrorCode::MAX_RETRIES_EXCEEDED; // max retry attempts reached
 }
 

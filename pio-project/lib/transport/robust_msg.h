@@ -10,7 +10,7 @@ extern "C" {
 
 
 // blueprint for setting fault prob if fault simulation is used
-void set_simulation_fault_prob(float p);
+void set_simulation_fault_n(int n);
 
 // Use this function to log to the ui (python backed readable)
 

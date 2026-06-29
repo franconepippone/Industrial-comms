@@ -49,21 +49,22 @@ def initialize_serial(port: str):
         _dashboard.controls.set_connection_status(f'Connection successfull to {port}')
     print(f"Serial connected to {port}")
 
-        
-def request_ident():
+def _send_serial(data: bytes) -> serial.Serial | None:
     if SERIAL and SERIAL.open:
-        print('sending to serial')
-        SERIAL.write(b'i')
+        print('sending to serial ->', data)
+        SERIAL.write(data)
     else:
-        print('Serial is not opened, ident failed')
+        print('Serial is not opened, could not send', data)
+
+def request_ident():
+    _send_serial(b'i')
    
+def change_fault_prob(p: float):
+    n = int(p)
+    _send_serial(f"f{n}\n".encode())
 
 def request_send():
-    if SERIAL and SERIAL.open:
-        print('sending to serial')
-        SERIAL.write(b's')
-    else:
-        print('Serial is not opened, send failed')
+    _send_serial(b's')
 
 def run_serial_loop():
     global SERIAL, _dashboard
@@ -75,11 +76,16 @@ def run_serial_loop():
 
     print('DASHBOARD FOUND')
     
+    # handles sending arbitrary message
     _dashboard.logs.bind_send_callback(request_send)
     print(_dashboard.logs.send_callback, id(_dashboard))
 
+    # handles selecting and connecting to serial
     _dashboard.controls.set_ports(get_available_ports())
     _dashboard.controls.set_connect_callback(initialize_serial)
+    
+    # handles simulated fault probability change
+    _dashboard.controls.set_loss_update_callback(change_fault_prob)
 
     while True:
         if _dashboard is None:
@@ -94,6 +100,8 @@ def run_serial_loop():
             line = SERIAL.readline().decode(errors="ignore").strip()
             if not line:
                 continue
+
+            print("BOARD ECHO >>> \t", line)
             
             command, args = parse_ui_logs(line)
             
@@ -111,16 +119,22 @@ def run_serial_loop():
                     MAX_ATTEMPTS = 5
 
                     print('GOT SEND:', args)
-                    time_ms, mac, status, size, nonce, packid, attempt_n = args
+                    time_ms, mac, status, size, nonce, packid, attempt_n, err_code = args
                     color = LogColor.SUCCESS
-                    if (int(attempt_n) > 0):
+                    if (int(status) != 0):
                         color = LogColor.WARNING
-                    if (int(attempt_n) == MAX_ATTEMPTS):
-                        color = LogColor.ERROR
+                    
 
                     mac = '(to) ' + mac
                     status_str = 'OK' if status != 0 else f'ERR ({status})'
-                    status_str += f' (attempt#: {attempt_n})' if int(attempt_n) != 0 else ''
+                    if err_code == "timeout":
+                        status_str = 'T/O '
+                        color = LogColor.ERROR
+                    if err_code == "maxretries":
+                        status_str = 'REX'
+                    
+                    status_str += f' (retry# {attempt_n})' if int(attempt_n) != 0 else ''
+                    
 
                     _dashboard.logs.add('TX', mac, status_str, time_ms, size, nonce, packid, color)
                 

@@ -115,8 +115,10 @@ void loop() {
   }
 
   if (cm == FAULT_P_UPDATE) {
-    float p = Serial.parseFloat();
-    set_simulation_fault_prob(p);
+    long p = Serial.parseInt();
+    set_simulation_fault_n(p);
+    Serial.print("Changed fault n to ");
+    Serial.println(p);
   }
 
 }
