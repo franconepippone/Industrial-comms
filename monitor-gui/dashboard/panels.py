@@ -193,13 +193,13 @@ class LogPanel:
         self.send_callback = None
 
         self.columns = [
-            {"name": "source", "label": "Source", "field": "source"},
-            {"name": "timestamp", "label": "Time (ms)", "field": "timestamp"},
-            {"name": "mac", "label": "MAC", "field": "mac"},
-            {"name": "size", "label": "Size", "field": "size"},
-            {"name": "nonce", "label": "Nonce", "field": "nonce"},
-            {"name": "packid", "label": "Pack ID", "field": "packid"},
-            {"name": "status", "label": "Status", "field": "status"},
+            {"name": "source", "label": "Source", "field": "source", "align": "center", "style": "width: 80px; max-width: 80px;"},
+            {"name": "timestamp", "label": "Time (ms)", "field": "timestamp", "align": "center", "style": "width: 110px;"},
+            {"name": "mac", "label": "MAC", "field": "mac", "align": "center", "style": "width: 180px;"},
+            {"name": "size", "label": "Size", "field": "size", "align": "center", "style": "width: 70px;"},
+            {"name": "nonce", "label": "Nonce", "field": "nonce", "align": "center", "style": "width: 120px;"},
+            {"name": "packid", "label": "Pack ID", "field": "packid", "align": "center", "style": "width: 110px;"},
+            {"name": "status", "label": "Status", "field": "status", "align": "center", "style": "width: 90px;"},
         ]
 
         # Initialize background timer for periodic triggering

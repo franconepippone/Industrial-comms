@@ -9,6 +9,9 @@ extern "C" {
 }
 
 
+// blueprint for setting fault prob if fault simulation is used
+void set_simulation_fault_prob(float p);
+
 // Use this function to log to the ui (python backed readable)
 
 #define BEGIN_SEQ_INDICATOR "&&&"

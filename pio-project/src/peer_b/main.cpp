@@ -2,6 +2,7 @@
 #include <ESP8266WiFi.h>
 #include "robust_msg.h"
 
+#include "commands.h"
 
 
 uint8_t receiverMAC[6] = {0xE0, 0x98, 0x06, 0x85, 0xAC, 0x69};
@@ -35,7 +36,7 @@ void setup() {
 
   Serial.println("ESP8266 ESP-NOW Example");
   Serial.println("ROLE: SENDER");
-
+  
   log_ui("IDENT", WiFi.macAddress(), "Peer-B (sender)");
 
   RobustMsg::printLocalMAC();
@@ -52,31 +53,6 @@ void setup() {
 // ============================================================
 // LOOP
 // ============================================================
-
-enum UserCommand {
-  SEND,
-  HOP,
-  CURRENT_CHN,
-  NO_OP,
-};
-
-UserCommand processSerialInput() {
-  if (Serial.available()) {
-    uint8 c = Serial.read();
-    switch (c) {
-      case 's':
-        return SEND;
-
-      case 'h':
-        return HOP;
-
-      case 'c':
-        return CURRENT_CHN;
-
-    }
-  }
-  return NO_OP;
-}
 
 void loop() {
   RobustMsg::processPendingOperations();
@@ -132,6 +108,15 @@ void loop() {
     int ch = WiFi.channel();
     Serial.print("Current channel: ");
     Serial.println(ch);
+  }
+
+  if (cm == IDENT_RQST) {
+    log_ui("IDENT", WiFi.macAddress(), "Peer-B (sender)");
+  }
+
+  if (cm == FAULT_P_UPDATE) {
+    float p = Serial.parseFloat();
+    set_simulation_fault_prob(p);
   }
 
 }

@@ -35,6 +35,10 @@ def initialize_serial(port: str):
     
     try:
         SERIAL = serial.Serial(port, baudrate=115200, timeout=.1)
+
+        time.sleep(.5)
+        request_ident()
+
     except Exception as e:
         print('Serial failed to connect: ', e)
         if _dashboard is not None:
@@ -46,14 +50,20 @@ def initialize_serial(port: str):
     print(f"Serial connected to {port}")
 
         
-
+def request_ident():
+    if SERIAL and SERIAL.open:
+        print('sending to serial')
+        SERIAL.write(b'i')
+    else:
+        print('Serial is not opened, ident failed')
+   
 
 def request_send():
     if SERIAL and SERIAL.open:
         print('sending to serial')
         SERIAL.write(b's')
     else:
-        print('Serial is not opened')
+        print('Serial is not opened, send failed')
 
 def run_serial_loop():
     global SERIAL, _dashboard

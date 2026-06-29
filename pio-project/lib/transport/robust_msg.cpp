@@ -62,8 +62,17 @@ void debugOnSent(uint8 *mac_addr, uint8 sendStatus) {
 
 
 #define SERIAL_DEBUG
-#define SIMULATE_FAULT 
+#define SIMULATE_FAULT
 
+#ifdef SIMULATE_FAULT
+int _fault_n = 5; // 20% by default
+#endif
+
+void set_simulation_fault_prob(float p) {
+    #ifdef SIMULATE_FAULT
+    _fault_n = (int)(1.0/p);
+    #endif
+}
 
 
 // ==============================
@@ -83,7 +92,7 @@ void RobustMsg::onDataSent(uint8 *mac_addr, uint8 sendStatus) {
 
     #ifdef SIMULATE_FAULT
     // simulate 20% send failure by randomly setting sendStatus to non-zero
-    if (os_random() % 5 == 0) {
+    if (os_random() % _fault_n == 0) {
         Serial.println("Simulating send failure in callback...");
         sendResult.sendStatus = 1; // non-zero indicates failure
     }

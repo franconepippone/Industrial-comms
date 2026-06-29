@@ -2,7 +2,7 @@
 #include <ESP8266WiFi.h>
 #include "robust_msg.h"
 
-
+#include "commands.h"
 
 uint8_t receiverMAC[6] = {0xE0, 0x98, 0x06, 0x86, 0x1C, 0xF4}; // TODO replace with actual peer MAC
 
@@ -57,4 +57,9 @@ void setup() {
 void loop() {
   delay(100);
   RobustMsg::processPendingOperations();
+  UserCommand cm = processSerialInput();
+
+  if (cm == IDENT_RQST) {
+    log_ui("IDENT", WiFi.macAddress(), "Peer-A (receiver)");
+  } 
 }
