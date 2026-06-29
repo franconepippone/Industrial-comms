@@ -220,11 +220,21 @@ class SourceType(str, Enum):
     # To add more source types later, just add them here:
     # EXAMPLE = "EXAMPLE"
 
+from typing import Any, List, Dict, Optional, Callable
+from nicegui import ui
+
+from typing import Any, List, Dict, Optional, Callable
+from nicegui import ui
+
+from typing import Any, List, Dict, Optional, Callable
+from nicegui import ui
+
 class LogPanel:
     """Terminal-style log viewer with integrated toolbar controls."""
 
     rows: List[Dict[str, Any]]
     columns: List[Dict[str, str]]
+    header_table: Any
     table: Any
     filter_source: Any
     filter_status: Any
@@ -244,14 +254,29 @@ class LogPanel:
         self.auto_scroll = True
         self.send_callback = None
 
+        # 1. NEW: Force a rigid layout on both tables and prevent text overflow
+        ui.add_css("""
+            .sync-table table {
+                table-layout: fixed !important;
+                width: 100% !important;
+            }
+            .sync-table th, .sync-table td {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+        """)
+
+        # 2. NEW: Explicitly define both 'headerStyle' and 'style' so the empty table
+        # and the populated table receive the exact same layout instructions.
         self.columns = [
-            {"name": "source", "label": "Source", "field": "source", "align": "center", "style": "width: 80px; max-width: 80px;"},
-            {"name": "timestamp", "label": "Time (ms)", "field": "timestamp", "align": "center", "style": "width: 110px;"},
-            {"name": "mac", "label": "MAC", "field": "mac", "align": "center", "style": "width: 180px;"},
-            {"name": "size", "label": "Size", "field": "size", "align": "center", "style": "width: 70px;"},
-            {"name": "nonce", "label": "Nonce", "field": "nonce", "align": "center", "style": "width: 120px;"},
-            {"name": "packid", "label": "Pack ID", "field": "packid", "align": "center", "style": "width: 110px;"},
-            {"name": "status", "label": "Status", "field": "status", "align": "center", "style": "width: 90px;"},
+            {"name": "source", "label": "Source", "field": "source", "align": "center", "headerStyle": "width: 80px;", "style": "width: 80px;"},
+            {"name": "timestamp", "label": "Time (ms)", "field": "timestamp", "align": "center", "headerStyle": "width: 110px;", "style": "width: 110px;"},
+            {"name": "mac", "label": "MAC", "field": "mac", "align": "center", "headerStyle": "width: 180px;", "style": "width: 180px;"},
+            {"name": "size", "label": "Size", "field": "size", "align": "center", "headerStyle": "width: 70px;", "style": "width: 70px;"},
+            {"name": "nonce", "label": "Nonce", "field": "nonce", "align": "center", "headerStyle": "width: 120px;", "style": "width: 120px;"},
+            {"name": "packid", "label": "Pack ID", "field": "packid", "align": "center", "headerStyle": "width: 110px;", "style": "width: 110px;"},
+            {"name": "status", "label": "Status", "field": "status", "align": "center", "headerStyle": "width: 90px;", "style": "width: 90px;"},
         ]
 
         # Initialize background timer for periodic triggering
@@ -264,7 +289,7 @@ class LogPanel:
                 
                 # Group 1: Filters
                 self.filter_source = ui.select(
-                    options=[""] + [source.value for source in SourceType],
+                    options=[""] + [source.value for source in SourceType], # Adjust as needed
                     value="",
                     label="Source",
                 ).classes("w-36")
@@ -276,7 +301,7 @@ class LogPanel:
                 ).classes("w-28")
 
                 ui.button("Apply", on_click=self.apply_filters).props("flat color=primary")
-                ui.button("Clear", on_click=self.clear_filters).props("flat color=grey")
+                ui.button("Clear Filters", on_click=self.clear_filters).props("flat color=grey")
 
                 # Visual Separator between Filters and Sender Action Group
                 ui.element("div").classes("w-px h-8 bg-gray-300 mx-2")
@@ -302,45 +327,60 @@ class LogPanel:
                     ).classes("w-28")
                     ui.label().bind_text_from(self.interval_slider, "value", backward=lambda v: f"{v:.1f}s")
 
-                # Disable 'Send' button if auto-periodic processing loop is executing
                 self.send_button.bind_enabled_from(self.periodic_checkbox, "value", backward=lambda v: not v)
 
-                # Push the Auto-scroll checkbox to the far right side
+                # Group 3: Right-aligned Utilities
                 ui.element("div").classes("col-grow")
+                
+                ui.button("Clear Log", on_click=self.clear).props("flat color=negative").classes("mr-2")
+                
                 self.auto_toggle = ui.checkbox(
                     "Auto-scroll",
                     value=True,
                     on_change=self._toggle_autoscroll,
                 )
 
-            # --- Table Setup ---
-            self.table = ui.table(
-                columns=self.columns,
-                rows=self.rows,
-            ).classes("w-full")
+            # --- Dual Table Setup ---
+                        # The wrapper controls the outer boundary
+            with ui.column().classes("w-full gap-0 border border-gray-300 rounded overflow-hidden"):
+                
+                # 3. Header Table: Forces the same width calculation as the body
+                with ui.element("div").classes("w-full bg-slate-100 overflow-x-hidden").style("overflow-y: scroll; border-bottom: 1px solid #e5e7eb;"):
+                    self.header_table = ui.table(
+                        columns=self.columns,
+                        rows=[],
+                    ).classes("w-full").props("flat hide-bottom").style("table-layout: fixed")
+                    
+                    self.header_table.add_slot("no-data", "")
+                
+                # 4. The Resizable Scroll Container
+                self.scroll_container = ui.element("div").classes(
+                    "w-full bg-white overflow-x-hidden"
+                ).style(
+                    "height: 320px;"
+                    "resize: vertical;"
+                    "overflow-y: scroll;"
+                    "min-height: 120px;"
+                    "max-height: 900px;"
+                )
+                
+                # 5. The Body Table
+                with self.scroll_container:
+                    self.table = ui.table(
+                        columns=self.columns,
+                        rows=self.rows,
+                    ).classes("w-full").props("flat hide-header").style("table-layout: fixed")
 
-            self.table.add_slot(
-                "body",
-                """
-                <q-tr :props="props" :style="props.row.color ? 'background-color: ' + props.row.color : ''">
-                  <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                    {{ col.value }}
-                  </q-td>
-                </q-tr>
-                """,
-            )
-
-            self.scroll_container = ui.element("div").classes(
-                "w-full"
-            ).style(
-                "height: 320px;"
-                "resize: vertical;"
-                "overflow: auto;"
-                "min-height: 120px;"
-                "max-height: 900px;"
-            )
-
-            self.table.move(self.scroll_container)
+                    self.table.add_slot(
+                        "body",
+                        """
+                        <q-tr :props="props" :style="props.row.color ? 'background-color: ' + props.row.color : ''">
+                        <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                            {{ col.value }}
+                        </q-td>
+                        </q-tr>
+                        """,
+                    )
 
     # --- Control Toolbar Logic Engines ---
 
@@ -379,11 +419,11 @@ class LogPanel:
         size: str = "",
         nonce: str = "",
         packid: str = "",
-        color: Optional[LogColor | str] = None,
+        color: Optional[Any] = None,
     ) -> int:
         resolved_color = None
         if color:
-            resolved_color = color.value if isinstance(color, LogColor) else color
+            resolved_color = getattr(color, 'value', color) if not isinstance(color, str) else color
 
         row: Dict[str, Any] = {
             "id": self.next_row_id,
@@ -427,11 +467,11 @@ class LogPanel:
         self.table.update()
 
     def update_status_and_color(
-        self, row_id: int, status: str, color: Optional[LogColor | str]
+        self, row_id: int, status: str, color: Optional[Any]
     ) -> None:
         resolved_color = None
         if color:
-            resolved_color = color.value if isinstance(color, LogColor) else color
+            resolved_color = getattr(color, 'value', color) if not isinstance(color, str) else color
 
         for r in self.rows:
             if r["id"] == row_id:
@@ -464,10 +504,7 @@ class LogPanel:
 
         self.table.rows = filtered
         self.table.update()
-
-
-
-
+        
 # =============================================================================
 # Plot Panel
 # =============================================================================
