@@ -172,11 +172,11 @@ class LogPanel:
     def _toggle_autoscroll(self, e: Any) -> None:
         self.auto_scroll = bool(e.value)
 
-    def add(self, source: str, mac: str, status: str) -> int:
+    def add(self, source: str, mac: str, status: str, timestamp: str) -> int:
         row: Dict[str, Any] = {
             "id": self.next_row_id,
             "source": source,
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "timestamp": timestamp,
             "mac": mac,
             "status": status,
         }
