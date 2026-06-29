@@ -17,6 +17,9 @@ from nicegui import ui
 from typing import Any, List, Optional, Callable
 from nicegui import ui
 
+from typing import Any, List, Optional, Callable
+from nicegui import ui
+
 class ControlPanel:
     """Top control and configuration panel."""
 
@@ -28,11 +31,13 @@ class ControlPanel:
     
     # Control Elements
     checkbox_simulate_losses: Any
-    slider_loss_percentage: Any
+    slider_ack_loss: Any          # RENAMED/NEW
+    slider_pkt_loss: Any          # RENAMED/NEW
     
     # Callback placeholders
     connect_callback: Optional[Callable[[str], None]]
-    loss_update_callback: Optional[Callable[[float], None]]
+    ack_loss_callback: Optional[Callable[[float], None]]  # NEW
+    pkt_loss_callback: Optional[Callable[[float], None]]  # NEW
 
     def __init__(
         self,
@@ -45,7 +50,8 @@ class ControlPanel:
             ports = ["COM1", "COM3"]
             
         self.connect_callback = None
-        self.loss_update_callback = None
+        self.ack_loss_callback = None
+        self.pkt_loss_callback = None
 
         with ui.expansion("Control Panel", icon="settings", value=True):
             with ui.column().classes("w-full gap-3"):
@@ -85,22 +91,39 @@ class ControlPanel:
                 self.checkbox_simulate_losses = ui.checkbox(
                     "Simulate losses",
                     value=False,
-                    on_change=self._handle_loss_change
+                    on_change=self._handle_checkbox_change
                 )
 
-                # CHANGED: Wrapped slider & text indicator in a row bound to the checkbox visibility
+                # NEW: ACK Loss Probability Slider Row
                 with ui.row().classes("items-center gap-4 w-full").bind_visibility_from(self.checkbox_simulate_losses, 'value'):
-                    self.slider_loss_percentage = ui.slider(
+                    ui.label("ACK Loss Probability:").classes("text-sm text-gray-600 w-44")
+                    self.slider_ack_loss = ui.slider(
                         min=0,
                         max=100,
                         step=1,
                         value=0,
-                        on_change=self._handle_loss_change
+                        on_change=self._handle_ack_change
                     ).classes("w-64")
                     
-                    # NEW: Label that automatically binds to and formats the slider's value
                     ui.label().bind_text_from(
-                        self.slider_loss_percentage, 
+                        self.slider_ack_loss, 
+                        'value', 
+                        backward=lambda v: f"{int(v)}%"
+                    ).classes("text-sm font-bold text-gray-700 w-12")
+
+                # NEW: Packet Loss Probability Slider Row
+                with ui.row().classes("items-center gap-4 w-full").bind_visibility_from(self.checkbox_simulate_losses, 'value'):
+                    ui.label("Packet Loss Probability:").classes("text-sm text-gray-600 w-44")
+                    self.slider_pkt_loss = ui.slider(
+                        min=0,
+                        max=100,
+                        step=1,
+                        value=0,
+                        on_change=self._handle_pkt_change
+                    ).classes("w-64")
+                    
+                    ui.label().bind_text_from(
+                        self.slider_pkt_loss, 
                         'value', 
                         backward=lambda v: f"{int(v)}%"
                     ).classes("text-sm font-bold text-gray-700 w-12")
@@ -111,9 +134,10 @@ class ControlPanel:
         """Binds an external connection engine function."""
         self.connect_callback = func
 
-    def set_loss_update_callback(self, func: Callable[[float], None]) -> None:
-        """Binds an external function to respond to loss simulation changes."""
-        self.loss_update_callback = func
+    def bind_callbacks(self, ack_callback: Callable[[float], None], pkt_callback: Callable[[float], None]) -> None:
+        """NEW: Single method to bind both loss simulation engine callbacks at once."""
+        self.ack_loss_callback = ack_callback
+        self.pkt_loss_callback = pkt_callback
 
     def _handle_connect(self) -> None:
         """Internal router triggering the bound execution engine."""
@@ -121,18 +145,22 @@ class ControlPanel:
             selected_port = self.get_selected_port()
             self.connect_callback(selected_port)
 
-    def _handle_loss_change(self) -> None:
-        """
-        Internal router handling both checkbox and slider mutations.
-        Passes 0 if simulation is disabled, otherwise passes the slider value.
-        """
-        if self.loss_update_callback:
-            if self.checkbox_simulate_losses.value:
-                current_loss = self.slider_loss_percentage.value
-            else:
-                current_loss = 0.0
-                
-            self.loss_update_callback(current_loss)
+    def _handle_ack_change(self) -> None:
+        """Evaluates and routes the ACK loss state to the runtime engine."""
+        if self.ack_loss_callback:
+            value = self.slider_ack_loss.value if self.checkbox_simulate_losses.value else 0.0
+            self.ack_loss_callback(value)
+
+    def _handle_pkt_change(self) -> None:
+        """Evaluates and routes the Packet loss state to the runtime engine."""
+        if self.pkt_loss_callback:
+            value = self.slider_pkt_loss.value if self.checkbox_simulate_losses.value else 0.0
+            self.pkt_loss_callback(value)
+
+    def _handle_checkbox_change(self) -> None:
+        """Triggers updates across both endpoints when loss simulation is toggled."""
+        self._handle_ack_change()
+        self._handle_pkt_change()
 
     def set_connection_status(self, text: str, color: Optional[str] = None) -> None:
         """Updates the inline outcome text box display text and background color."""
@@ -166,6 +194,7 @@ class ControlPanel:
     def set_mac(self, value: str) -> None:
         self.mac_field.value = value
         self.mac_field.update()
+
 
 # =============================================================================
 # Log Panel
@@ -435,6 +464,10 @@ class LogPanel:
 
         self.table.rows = filtered
         self.table.update()
+
+
+
+
 # =============================================================================
 # Plot Panel
 # =============================================================================

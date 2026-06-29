@@ -114,10 +114,17 @@ void loop() {
     log_ui("IDENT", WiFi.macAddress(), "Peer-B (sender)");
   }
 
-  if (cm == FAULT_P_UPDATE) {
+  if (cm == ACK_LOSS_P) {
     long p = Serial.parseInt();
-    set_simulation_fault_n(p);
-    Serial.print("Changed fault n to ");
+    set_sim_loss_ack_p(p);
+    Serial.print("Changed ack loss p to ");
+    Serial.println(p);
+  }
+
+  if (cm == SEND_LOSS_P) {
+    long p = Serial.parseInt();
+    set_sim_loss_send_p(p);
+    Serial.print("Changed send loss p to ");
     Serial.println(p);
   }
 

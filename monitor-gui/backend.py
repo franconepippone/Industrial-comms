@@ -59,9 +59,13 @@ def _send_serial(data: bytes) -> serial.Serial | None:
 def request_ident():
     _send_serial(b'i')
    
-def change_fault_prob(p: float):
+def change_send_loss_p(p: float):
     n = int(p)
-    _send_serial(f"f{n}\n".encode())
+    _send_serial(f"l{n}\n".encode())
+
+def change_ack_loss_p(p: float):
+    n = int(p)
+    _send_serial(f"a{n}\n".encode())
 
 def request_send():
     _send_serial(b's')
@@ -85,7 +89,7 @@ def run_serial_loop():
     _dashboard.controls.set_connect_callback(initialize_serial)
     
     # handles simulated fault probability change
-    _dashboard.controls.set_loss_update_callback(change_fault_prob)
+    _dashboard.controls.bind_callbacks(change_ack_loss_p, change_send_loss_p)
 
     while True:
         if _dashboard is None:

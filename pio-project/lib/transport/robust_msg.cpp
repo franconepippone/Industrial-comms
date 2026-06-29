@@ -65,14 +65,22 @@ void debugOnSent(uint8 *mac_addr, uint8 sendStatus) {
 #define SIMULATE_FAULT
 
 #ifdef SIMULATE_FAULT
-int _fault_prob = 5; // 20% by default
+unsigned int _fault_prob_send = 20; // 20% by default
+unsigned int _fault_prob_ack = 20; // 20% by default
 #endif
 
-void set_simulation_fault_n(int p) {
+void set_sim_loss_ack_p(int p) {
     #ifdef SIMULATE_FAULT
-    _fault_prob = p;
+    _fault_prob_ack = p;
     #endif
 }
+
+void set_sim_loss_send_p(int p) {
+    #ifdef SIMULATE_FAULT
+    _fault_prob_send = p;
+    #endif
+}
+
 
 
 // ==============================
@@ -91,14 +99,13 @@ void RobustMsg::onDataSent(uint8 *mac_addr, uint8 sendStatus) {
     sendResult.sendStatus = sendStatus;
 
     #ifdef SIMULATE_FAULT
-    // simulate 20% send failure by randomly setting sendStatus to non-zero
-    if (os_random() % 100 < _fault_prob) {
+    // simulate ACK loss by randomly setting sendStatus to non-zero
+    if ((os_random() % 100 < _fault_prob_ack) && sendStatus == 0) {
         Serial.println("Simulating send failure in callback...");
         sendResult.sendStatus = 1; // non-zero indicates failure
     }
     #endif
 
-    
     sendResult.finished = true;
 }
 
@@ -226,8 +233,19 @@ inline auto RobustMsg::sendMessage(u8* da, u8* data, unsigned int len, uint32 no
     // copy payload after header
     memcpy(outboundData + sizeof(Header), data, len);
 
-    return esp_now_send(da, outboundData, sizeof(outboundData));
-}
+    // simulate PACKET loss (dont send anything)
+    #ifdef SIMULATE_FAULT
+        if (os_random() % 100 < _fault_prob_send) {
+            Serial.println("Simulating send packet loss...");
+            onDataSent(da, 1); // we directly call the send callback with negative status, we dont actually send anything
+            return 0;            
+        } else {
+            return esp_now_send(da, outboundData, sizeof(outboundData));
+        }
+    #else
+        return esp_now_send(da, outboundData, sizeof(outboundData));
+    #endif
+    }
 
 // UTILITY
 

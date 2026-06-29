@@ -5,7 +5,8 @@ enum UserCommand {
   HOP,
   CURRENT_CHN,
   NO_OP,
-  FAULT_P_UPDATE,
+  ACK_LOSS_P,
+  SEND_LOSS_P,
   IDENT_RQST
 };
 
@@ -22,8 +23,11 @@ UserCommand processSerialInput() {
       case 'c':
         return CURRENT_CHN;
       
-      case 'f':
-        return FAULT_P_UPDATE;
+      case 'a':
+        return ACK_LOSS_P;
+      
+      case 'l':
+        return SEND_LOSS_P;
       
       case 'i':
         return IDENT_RQST;

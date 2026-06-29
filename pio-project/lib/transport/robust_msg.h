@@ -10,7 +10,9 @@ extern "C" {
 
 
 // blueprint for setting fault prob if fault simulation is used
-void set_simulation_fault_n(int n);
+void set_sim_loss_ack_p(int p);
+void set_sim_loss_send_p(int p);
+
 
 // Use this function to log to the ui (python backed readable)
 
