@@ -345,20 +345,30 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
 
 
 ErrorCode RobustMsg::hopChannel(uint8 newChannel) {
+    if (newChannel < 1 || newChannel > 14) return ErrorCode::INVALID_CHANNEL;
         
-    chHopAck = 0; // reset ack before sending command
+    chHopAck = 0; // reset ack for this hop session
 
     log_ui("HOP", "INIT", millis(), newChannel);
     
     // send channel change command to peer, reserved packetId 255 for channel change commands
     ErrorCode result = send((u8*)&newChannel, sizeof(newChannel), PACKID_HOP_RQST); 
     if (result != ErrorCode::OK) {
-        log_ui("HOP", "INITERR", millis(), result);
-        Serial.print("Failed to send channel hop command, error code: ");
-        Serial.println((uint8)result);
-        return result;
+        log_ui("HOP", "INITWRN", millis(), result);
+        Serial.print("[WRN]: Hop command returned nonzero error code ");
+        Serial.print((uint8)result);
+        Serial.print(" , (possibly ack-lost) continuing to check for HOP-ACK.");
+        //return result;
+
     }
     
+    /* Instead of returning if request is not succesfull, we still check for HOPACK. If request lost ACK,
+    the request still arrived, and the peer is switching state. We should rely on HOP-level acks instead of
+    single ARQ transactions. 
+    Of course, if HOP-ACK loses ARQ ACK-s, we hop while the other channel doesn't, so the problem is still there. This is unavoidable.
+    */
+
+
     // in this loop we are expecting the peer to send back the desired new channel as an ack
     auto startTime = millis();
     while (millis() - startTime < params.CHANNEL_HOP_TIMEOUT_MS) {

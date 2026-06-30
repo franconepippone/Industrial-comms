@@ -85,6 +85,12 @@ class ControlPanel:
                     on_change=lambda x: None
                 )
 
+                self.checkbox_disable_auto_hop = ui.checkbox(
+                    "Disable auto hopping", 
+                    value=False, 
+                    on_change=lambda x: None
+                )
+
                 # Simulate losses checkbox
                 self.checkbox_simulate_losses = ui.checkbox(
                     "Simulate losses",
@@ -127,6 +133,14 @@ class ControlPanel:
                     ).classes("text-sm font-bold text-gray-700 w-12")
 
     # --- Runtime Binding Hook Mechanics ---
+
+    def set_autohop_callbacks(self, enable: Callable[[], None], disable: Callable[[], None]) -> None:
+        def wrapper():
+            if bool(self.checkbox_disable_auto_hop.value):
+                enable()
+            else:
+                disable()        
+        self.checkbox_disable_auto_hop.on_value_change(wrapper)
 
     def set_connect_callback(self, func: Callable[[str], None]) -> None:
         """Binds an external connection engine function."""

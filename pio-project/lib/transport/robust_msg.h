@@ -54,7 +54,8 @@ enum class ErrorCode : uint8 {
     NOT_INITIALIZED,
     MAX_RETRIES_EXCEEDED,
     INTERNAL_ERROR,
-    CHANNEL_HOP_INVALID_ACK
+    CHANNEL_HOP_INVALID_ACK,
+    INVALID_CHANNEL
 };
 
 // internal usage only

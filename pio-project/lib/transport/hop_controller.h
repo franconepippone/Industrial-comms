@@ -18,6 +18,7 @@ class HopController {
     uint64_t last_tx_fail = 0;
     unsigned long last_time = 0;
     unsigned long next_hop_min_time = 0;
+    bool is_paused = false;
 
 public:
     struct {
@@ -112,13 +113,18 @@ public:
 
     void logAllReps() {
         for (int i = 0; i < 14; i++) 
-            log_ui("HOPCTRL", millis(), to_esp_channel(i), D, chs[i].R);
+            log_ui("HOPCTRL", "LOG", millis(), to_esp_channel(i), D, chs[i].R);
     }
 
     void setReputations(const float (&reps)[14]) {
         for (int i = 0; i < 14; i++) {
             chs[i].R = reps[i];
         }
+    }
+
+    void paused(bool enabled) {
+        is_paused = enabled;
+        log_ui("HOPCTRL", "PAUSE", enabled);
     }
 
         
@@ -143,12 +149,14 @@ public:
         last_time = millis();
 
         updateVariables(float(dt));
-        log_ui("HOPCTRL", millis(), to_esp_channel(current_ch), D, chs[current_ch].R);
+        log_ui("HOPCTRL", "LOG", millis(), to_esp_channel(current_ch), D, chs[current_ch].R);
         
+        if (is_paused) return; // process variables but don't hop
+
         // trigger hop
         if (D > params.d_treeshold && (millis() > next_hop_min_time)) {
             next_hop_min_time = millis() + params.hop_cooldown_ms;
-            log_ui("HOPCTRLT_TRIGGER", next_hop_min_time, millis());
+            log_ui("HOPCTRLT", "TRIGGER", next_hop_min_time, millis());
             espWifiChannel best_ch = get_best_channel();
             forceHop(best_ch);
         }

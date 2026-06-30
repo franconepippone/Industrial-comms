@@ -7,7 +7,9 @@ enum UserCommand {
   NO_OP,
   ACK_LOSS_P,
   SEND_LOSS_P,
-  IDENT_RQST
+  IDENT_RQST,
+  PAUSE_AUTOHOP,
+  RESUME_AUTOHOP
 };
 
 UserCommand processSerialInput() {
@@ -31,6 +33,12 @@ UserCommand processSerialInput() {
       
       case 'i':
         return IDENT_RQST;
+      
+      case 'p':
+        return PAUSE_AUTOHOP;
+      
+      case 'r':
+        return RESUME_AUTOHOP;
 
     }
   }

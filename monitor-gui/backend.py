@@ -64,6 +64,13 @@ def _send_serial(data: bytes) -> bool:
         print('Serial is not opened, could not send', data)
         return False
 
+def set_autohop_pause(paused: bool):
+    if paused:
+        _send_serial(b'p') # paused
+    else:
+        _send_serial(b'r') # resume
+
+
 def request_ident():
     _send_serial(b'i')
    
@@ -109,7 +116,13 @@ def run_serial_loop():
     # handles selecting and connecting to serial
     _dashboard.controls.set_ports(get_available_ports())
     _dashboard.controls.set_connect_callback(initialize_serial)
+
+    # set
     _dashboard.controls.set_echo_toggle_callback(set_echo)
+    _dashboard.controls.set_autohop_callbacks(
+        partial(set_autohop_pause, True),
+        partial(set_autohop_pause, False)
+    )
     
     # handles simulated fault probability change
     _dashboard.controls.bind_callbacks(change_ack_loss_p, change_send_loss_p)
@@ -165,7 +178,7 @@ def run_serial_loop():
                         status_str = 'REX'
                     
                     global QUEUED_SENDS
-                    if QUEUED_SENDS > 0 and int(status) == 0:
+                    if QUEUED_SENDS > 0 and (int(status) == 0 or err_code in ("timeout", "maxretries")):
                         QUEUED_SENDS -= 1 # consume one send if succesfull
                         print("QUEUED SENDS: ", QUEUED_SENDS)
                     
@@ -181,15 +194,25 @@ def run_serial_loop():
 
                 case 'HOPCTRL':
                     print('GoT HOPCTRL', args)
-                    time_ms, current_ch, D, R = args
+                    subcomm, args = args[0], args[1:]
 
-                    time_s = int(time_ms) / 1000
-                    D = float(D)
-                    R = float(R)
+                    match subcomm:
+                        case 'LOG':
+                            time_ms, current_ch, D, R = args
 
-                    _dashboard.plots.append(time_s, R, D)
-                    _dashboard.plots.set_bar(int(current_ch), R)
-                
+                            time_s = int(time_ms) / 1000
+                            D = float(D)
+                            R = float(R)
+
+                            _dashboard.plots.append(time_s, R, D)
+                            _dashboard.plots.set_bar(int(current_ch), R)
+                        
+                        case 'TRIGGER':
+                            pass
+                        
+                        case 'PAUSE':
+                            pass
+
                 case 'HOP':
                     subcomm, args = args[0], args[1:]
                     time_ms, ch  = args
@@ -209,7 +232,7 @@ def run_serial_loop():
                     elif subcomm == 'GOTRQST':
                         log_hop(f'GOTRQST (ch {ch})', LogColor.LOG_INFO)
                     elif subcomm == 'INITERR':
-                        log_hop(f'INITERR (ch {ch})', LogColor.LOG_ERROR)
+                        log_hop(f'INITWRN (ch {ch})', LogColor.LOG_ERROR)
                     elif subcomm == 'ACKRFAIL':
                         log_hop(f'ACKR FAIL (ch {ch})', LogColor.LOG_ERROR)
                 

@@ -162,6 +162,14 @@ void loop() {
     Serial.print("Changed send loss p to ");
     Serial.println(p);
   }
+  
+  if (cm == PAUSE_AUTOHOP) {
+    hopctrl.paused(true);
+  }
+
+  if (cm == RESUME_AUTOHOP) {
+    hopctrl.paused(false);
+  }
 
 }
 
