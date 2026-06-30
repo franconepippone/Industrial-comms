@@ -204,6 +204,7 @@ class ControlPanel:
 
 # Soft, clean pastel tones that look great on light-themed tables
 class LogColor(str, Enum):
+    WHITE = "#ffffff"
     SUCCESS = "#dcfce7"
     WARNING = "#fef3c7"
     ERROR = "#ffc6c6"
@@ -215,6 +216,7 @@ class LogColor(str, Enum):
 class SourceType(str, Enum):
     TX = "TX"
     RX = "RX"
+    HOP = "HOP"
     # To add more source types later, just add them here:
     # EXAMPLE = "EXAMPLE"
 
@@ -226,7 +228,6 @@ class LogPanel:
     header_table: Any
     table: Any
     filter_source: Any
-    filter_status: Any
     auto_toggle: Any
     scroll_container: Any
 
@@ -237,6 +238,8 @@ class LogPanel:
     timer: ui.timer
     send_callback: Optional[Callable[[], None]]
     hop_callback: Optional[Callable[[], None]]
+
+    max_rows = 100
 
     def __init__(self) -> None:
         self.rows = []
@@ -283,47 +286,37 @@ class LogPanel:
                     options=[""] + [source.value for source in SourceType], # Adjust as needed
                     value="",
                     label="Source",
+                    on_change=self.apply_filters
                 ).classes("w-36")
 
-                self.filter_status = ui.select(
-                    ["", "INFO", "WARN", "ERROR", "OK"],
-                    value="",
-                    label="Status",
-                ).classes("w-28")
+                #self.filter_status = ui.select(
+                #    ["", "SUCCESS", "WARNING", "ERROR"],
+                #    value="",
+                #    label="Outcome",
+                #    on_change=self.apply_filters
+                #).classes("w-28")
 
-                ui.button("Apply", on_click=self.apply_filters).props("flat color=primary")
+                self.selected = {
+                    'OTHER': True,
+                    'SUCCESS': True,
+                    'WARNING': True,
+                    'ERROR': True,
+                }
+
+                with ui.button('Status Filter'):
+                    with ui.menu():
+                        with ui.column().classes('gap-1 p-2'):
+                            for name in self.selected:
+                                ui.checkbox(name, on_change=self.apply_filters).bind_value(self.selected, name)
+
+                #ui.button("Apply", on_click=self.apply_filters).props("flat color=primary")
                 ui.button("Clear Filters", on_click=self.clear_filters).props("flat color=grey")
 
                 # Visual Separator between Filters and Sender Action Group
                 ui.element("div").classes("w-px h-8 bg-gray-300 mx-2")
 
-                # Group 2: Action Sender Panel
-                self.send_button = ui.button("Send", on_click=self._handle_send)
-
-                self.periodic_checkbox = ui.checkbox(
-                    "Periodic", 
-                    value=False, 
-                    on_change=self._toggle_periodic
-                )
-
-                self.hop_button = ui.button("Hop", on_click=self._handle_hop)
-
-                # Dynamic Interval Slider (Visible only when 'Periodic' is checked)
-                with ui.row().classes("items-center gap-2").bind_visibility_from(self.periodic_checkbox, "value"):
-                    ui.label("Interval:")
-                    self.interval_slider = ui.slider(
-                        min=0.1, 
-                        max=10.0, 
-                        value=1.0, 
-                        step=0.1, 
-                        on_change=self._update_timer_interval
-                    ).classes("w-28")
-                    ui.label().bind_text_from(self.interval_slider, "value", backward=lambda v: f"{v:.1f}s")
-
-                self.send_button.bind_enabled_from(self.periodic_checkbox, "value", backward=lambda v: not v)
-
-                # Group 3: Right-aligned Utilities
-                ui.element("div").classes("col-grow")
+                 # Group 3: Right-aligned Utilities
+                #ui.element("div").classes("col-grow")
                 
                 ui.button("Clear Log", on_click=self.clear).props("flat color=negative").classes("mr-2")
                 
@@ -332,6 +325,35 @@ class LogPanel:
                     value=True,
                     on_change=self._toggle_autoscroll,
                 )
+
+                # Group 2: Action Sender Panel
+                ui.element("div").classes("w-px h-8 bg-gray-300 mx-2")
+
+                self.hop_button = ui.button("Hop", on_click=self._handle_hop)
+                
+                self.send_button = ui.button("Send", on_click=self._handle_send)
+
+                self.periodic_checkbox = ui.checkbox(
+                    "Periodic", 
+                    value=False, 
+                    on_change=self._toggle_periodic
+                )
+
+                # Dynamic Interval Slider (Visible only when 'Periodic' is checked)
+                with ui.row().classes("items-center gap-2").bind_visibility_from(self.periodic_checkbox, "value"):
+                    ui.label("Interval:")
+                    self.interval_slider = ui.slider(
+                        min=0.1, 
+                        max=5.0, 
+                        value=1.0, 
+                        step=0.1, 
+                        on_change=self._update_timer_interval
+                    ).classes("w-28")
+                    ui.label().bind_text_from(self.interval_slider, "value", backward=lambda v: f"{v:.1f}s")
+
+                self.send_button.bind_enabled_from(self.periodic_checkbox, "value", backward=lambda v: not v)
+
+               
 
             # --- Dual Table Setup ---
                         # The wrapper controls the outer boundary
@@ -423,11 +445,8 @@ class LogPanel:
         size: str = "",
         nonce: str = "",
         packid: str = "",
-        color: Optional[Any] = None,
+        color: LogColor = LogColor.WHITE,
     ) -> int:
-        resolved_color = None
-        if color:
-            resolved_color = getattr(color, 'value', color) if not isinstance(color, str) else color
 
         row: Dict[str, Any] = {
             "id": self.next_row_id,
@@ -438,17 +457,20 @@ class LogPanel:
             "nonce": nonce,
             "packid": packid,
             "status": status,
-            "color": resolved_color,
+            "color": color,
         }
 
         self.next_row_id += 1
         self.rows.append(row)
 
-        self.table.rows = self.rows
-        self.table.update()
-
+        if len(self.rows) > self.max_rows:
+            self.rows.pop(0)
+        
         if self.auto_scroll:
             self.scroll_container.run_method("scrollTo", {"top": 999999})
+        
+        self.table.rows = self.rows
+        self.apply_filters()
 
         return row["id"]
 
@@ -471,16 +493,13 @@ class LogPanel:
         self.table.update()
 
     def update_status_and_color(
-        self, row_id: int, status: str, color: Optional[Any]
+        self, row_id: int, status: str, color: LogColor
     ) -> None:
-        resolved_color = None
-        if color:
-            resolved_color = getattr(color, 'value', color) if not isinstance(color, str) else color
 
         for r in self.rows:
             if r["id"] == row_id:
                 r["status"] = status
-                r["color"] = resolved_color
+                r["color"] = color
                 break
         self.table.rows = self.rows
         self.table.update()
@@ -490,7 +509,6 @@ class LogPanel:
 
     def clear_filters(self) -> None:
         self.filter_source.value = ""
-        self.filter_status.value = ""
         self.table.rows = self.rows
         self.table.update()
 
@@ -501,11 +519,31 @@ class LogPanel:
             f: str = self.filter_source.value.lower()
             filtered = [r for r in filtered if f in r["source"].lower()]
 
-        if self.filter_status.value:
-            filtered = [
-                r for r in filtered if r["status"] == self.filter_status.value
-            ]
+        if True:
+            color_map = {
+                "SUCCESS": LogColor.SUCCESS,
+                "WARNING": LogColor.WARNING,
+                "ERROR": LogColor.ERROR,
+            }
 
+            show_other = self.selected.get("OTHER", False)
+
+            enabled_colors = {
+                color_map[name]
+                for name, checked in self.selected.items()
+                if checked and name in color_map
+            }
+
+            filtered = [
+                r for r in filtered
+                if (
+                    r["color"] in enabled_colors
+                    or (
+                        show_other
+                        and r["color"] not in color_map.values()
+                    )
+                )
+            ]
         self.table.rows = filtered
         self.table.update()
         
@@ -516,21 +554,6 @@ class LogPanel:
 from typing import Any, Dict, List, Tuple
 from collections import deque
 import time
-
-from nicegui import ui
-
-
-from typing import Any, Dict, List, Tuple
-from collections import deque
-import time
-
-from nicegui import ui
-
-from typing import Any, Dict, List, Tuple
-from collections import deque
-import time
-
-from nicegui import ui
 
 
 class PlotPanel:

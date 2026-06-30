@@ -145,7 +145,7 @@ def run_serial_loop():
                     status = 'OK' if not duplicate_f else 'OK (duplicate)'
                     color = LogColor.SUCCESS if not duplicate_f else LogColor.WARNING
                     mac = '(from) ' + mac
-                    _dashboard.logs.add('RX', mac, status, time_ms, size, nonce, packid, color)
+                    _dashboard.logs.add('➟ RX', mac, status, time_ms, size, nonce, packid, color)
                         
                 case 'SEND':
 
@@ -172,7 +172,7 @@ def run_serial_loop():
                     status_str += f' (retry# {attempt_n})' if int(attempt_n) != 0 else ''
                     
 
-                    _dashboard.logs.add('TX', mac, status_str, time_ms, size, nonce, packid, color)
+                    _dashboard.logs.add('TX ➟', mac, status_str, time_ms, size, nonce, packid, color)
                 
                 case 'IDENT':
                     mac, name = args
