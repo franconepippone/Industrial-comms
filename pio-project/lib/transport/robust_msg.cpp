@@ -316,7 +316,7 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
 
         // if send callaback ran
         if (sendResult.finished) {
-            log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len, nonce, packId, attempt, "running");
+            log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len + sizeof(Header), nonce, packId, attempt, "running");
 
             if (sendResult.sendStatus == 0) return ErrorCode::OK; // on success
             
@@ -327,19 +327,19 @@ ErrorCode RobustMsg::send(u8* data, unsigned int len, u8 packId) {
             
             attempt++;
             delay(params.RETRY_BASE_DELAY_MS);
-            sendMessage(peerMAC, data, len, nonce, packId);
+            sendMessage(peerMAC, data, len + sizeof(Header), nonce, packId);
         }
 
         uint32 elapsed = millis() - startTime; // assuming difference fits inside uint32
         if (elapsed > params.SEND_TIMEOUT_MS) {
-            log_ui("SEND", millis(), mac_to_string(peerMAC), 1, len, nonce, packId, attempt, "timeout");
+            log_ui("SEND", millis(), mac_to_string(peerMAC), 1, len + sizeof(Header), nonce, packId, attempt, "timeout");
             Serial.println("ARQ timeout reached, aborting send");
             return ErrorCode::TIMEOUT; // timed out
         }
         // this delay is absolutely necessary to let the backround esp-now callback run. Removing it cause callback to fail
         delay(5); // TODO adjust this (can probably be lower)
     }
-    log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len, nonce, packId, attempt, "maxretries");
+    log_ui("SEND", millis(), mac_to_string(peerMAC), sendResult.sendStatus, len + sizeof(Header), nonce, packId, attempt, "maxretries");
     return ErrorCode::MAX_RETRIES_EXCEEDED; // max retry attempts reached
 }
 
@@ -376,15 +376,24 @@ ErrorCode RobustMsg::hopChannel(uint8 newChannel) {
         // chHopAck is set from the receive callback
         if (chHopAck == 0) continue;
 
-        if (chHopAck != newChannel) return ErrorCode::CHANNEL_HOP_INVALID_ACK; // received ack but for wrong channel, possibly desynchronized state between peers
+        if (chHopAck != newChannel) {
+            log_ui("HOP", "WRONGCHANNEL", millis(), chHopAck, newChannel);
+            return ErrorCode::CHANNEL_HOP_INVALID_ACK; // received ack but for wrong channel, possibly desynchronized state between peers
+        }
 
         Serial.println("Received channel hop ack from peer, switching channel");
         log_ui("HOP", "GOTACK", millis(), newChannel);
+
+        delay(1500); /* Mandatory to wait here, as we don't know if peer knows that we got the HOPACK (HOPACK-ack lost). Peer might still be
+        trying to send a duplicate of the HOPACK, if we change immediately, we cause it to fail and report a ACKRFAIL, remaining on the same channel.
+        Waiting a bit mitigates this problem. */
+
         wifi_set_channel(newChannel);
-        delay(1000); // wait a bit for channel switch to stabilize
+        delay(300); // wait a bit for channel switch to stabilize
         log_ui("HOP", "CHANNEL", millis(), WiFi.channel());
         return ErrorCode::OK;
     }
+    log_ui("HOP", "TIMEOUT", millis(), newChannel);
     return ErrorCode::TIMEOUT;
 }
 
@@ -406,9 +415,9 @@ void RobustMsg::processPendingOperations() {
             Serial.println((uint8)result);
         } else {
             Serial.println("Channel hop ack sent successfully");
-            delay(100); 
+            delay(300); // we should not need to wait here, as we are not expecting any more messages from this channel at this point 
             wifi_set_channel(pendingChannel);
-            delay(1000);
+            delay(300);
         }
 
         int ch = WiFi.channel();

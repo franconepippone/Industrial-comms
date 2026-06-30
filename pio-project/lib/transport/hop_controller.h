@@ -124,7 +124,7 @@ public:
 
     void paused(bool enabled) {
         is_paused = enabled;
-        log_ui("HOPCTRL", "PAUSE", enabled);
+        log_ui("HOPCTRL", "PAUSE", is_paused);
     }
 
         
@@ -137,8 +137,13 @@ public:
 
         if (code == ErrorCode::OK) {
             D = 0;
+            // avoids huge TXS/TXF spike on next iteration
+            last_tx_succ = RobustMsg::TX_succ_cnt;
+            last_tx_fail = RobustMsg::TX_fail_cnt;
             chs[old_channel].timeout = millis() + params.channel_cooldown_ms;
         }
+
+
         return code;
     }
 

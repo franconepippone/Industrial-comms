@@ -214,28 +214,39 @@ def run_serial_loop():
                             pass
 
                 case 'HOP':
+                    print("got HOP", args)
                     subcomm, args = args[0], args[1:]
-                    time_ms, ch  = args
-                    err_code = ch # for usage in err subcommands
 
                     def log_hop(status: str, color: LogColor):
                         if _dashboard:
-                            _dashboard.logs.add('HOP', '---', status, time_ms, '---', '---', '---', color)
+                            _dashboard.logs.add('HOP', '—', status, time_ms, '—', '—', '—', color)
 
                     if subcomm == "INIT":
+                        time_ms, ch  = args
                         log_hop(f'INIT (ch {ch})', LogColor.LOG_INFO)
                     elif subcomm == 'CHANNEL':
+                        time_ms, ch  = args
                         log_hop(f'CURRENT CH: {ch}', LogColor.LOG_INFO)
                         _dashboard.plots.clear_plot()
                     elif subcomm == 'GOTACK':
+                        time_ms, ch  = args
                         log_hop(f'GOTACK (ch {ch})', LogColor.LOG_INFO)
                     elif subcomm == 'GOTRQST':
+                        time_ms, ch  = args
                         log_hop(f'GOTRQST (ch {ch})', LogColor.LOG_INFO)
-                    elif subcomm == 'INITERR':
-                        log_hop(f'INITWRN (ch {ch})', LogColor.LOG_ERROR)
+
+                    elif subcomm == 'INITWRN':
+                        time_ms, errcode  = args
+                        log_hop(f'INWRN (ERR {errcode})', LogColor.LOG_ERROR)
                     elif subcomm == 'ACKRFAIL':
+                        time_ms, ch  = args
                         log_hop(f'ACKR FAIL (ch {ch})', LogColor.LOG_ERROR)
-                
+                    elif subcomm == 'WRONGCHANNEL':
+                        time_ms, ch_ack, ch_rqst  = args
+                        log_hop(f'EACK ({ch_ack}!={ch_rqst})', LogColor.LOG_ERROR)
+                    elif subcomm == 'TIMEOUT':
+                        time_ms, ch = args
+                        log_hop(f'T/O (ch {ch})', LogColor.LOG_ERROR)
 
         except Exception as e:
             print(f"Serial error encountered: {e}")
