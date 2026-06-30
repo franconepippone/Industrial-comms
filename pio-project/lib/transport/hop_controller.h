@@ -99,8 +99,8 @@ public:
     HopController() {
         update_current_channel();
         params = {
-            .hop_cooldown_ms = 1000,
-            .channel_cooldown_ms = 1000,
+            .hop_cooldown_ms = 5000,
+            .channel_cooldown_ms = 10000,
             .ch_proximity_range = 2,
             .ch_proximity_penalty = 0.5,
             .d_treeshold = .7,
@@ -148,6 +148,7 @@ public:
         // trigger hop
         if (D > params.d_treeshold && (millis() > next_hop_min_time)) {
             next_hop_min_time = millis() + params.hop_cooldown_ms;
+            log_ui("HOPCTRLT_TRIGGER", next_hop_min_time, millis());
             espWifiChannel best_ch = get_best_channel();
             forceHop(best_ch);
         }

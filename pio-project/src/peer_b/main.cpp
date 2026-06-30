@@ -44,9 +44,11 @@ void setup() {
   log_ui("IDENT", WiFi.macAddress(), "Peer-B (sender)");
 
   hopctrl.params = {
+    .hop_cooldown_ms = 10000,
+    .channel_cooldown_ms = 5000,
     .ch_proximity_range = 2,
     .ch_proximity_penalty = 0.5,
-    .d_treeshold = .8,
+    .d_treeshold = .7,
     .k_d = .5,
     .k_s = .01,
     .k_f = .005
